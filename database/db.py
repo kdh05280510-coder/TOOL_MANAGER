@@ -6,11 +6,13 @@ DB_PATH = Path(__file__).parent.parent / "data" / "tools.db"
 
 
 def get_connection():
-    """DB 연결을 반환합니다."""
     DB_PATH.parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row  # 딕셔너리처럼 접근 가능
+    conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys = ON")
+    conn.execute("PRAGMA journal_mode = WAL")      # 읽기/쓰기 동시 성능 향상
+    conn.execute("PRAGMA synchronous = NORMAL")    # 안전성과 속도 균형
+    conn.execute("PRAGMA temp_store = MEMORY")     # 임시 테이블을 메모리에
     return conn
 
 
@@ -93,10 +95,44 @@ def init_db():
         )
     """)
 
+    # 6. 카탈로그 (제원 전용)
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS catalog (
+            id              INTEGER PRIMARY KEY AUTOINCREMENT,
+            maker_name      TEXT,
+            tool_code       TEXT NOT NULL,
+            tool_name       TEXT,
+            main_code       TEXT,
+            sub_code        TEXT,
+            diameter        REAL,
+            length          REAL,
+            effective_len   REAL,
+            corner_r        REAL,
+            angle           REAL,
+            flute_count     INTEGER,
+            thread_spec     TEXT,
+            shank_dia       REAL,
+            total_length    REAL,
+            source          TEXT,
+            created_at      TEXT DEFAULT (datetime('now', 'localtime')),
+            UNIQUE(maker_name, tool_code)
+        )
+    """)
+
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_catalog_code ON catalog(tool_code)")
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_catalog_maker ON catalog(maker_name)")
+
     # 인덱스
     cur.execute("CREATE INDEX IF NOT EXISTS idx_inventory_barcode ON inventory(barcode)")
     cur.execute("CREATE INDEX IF NOT EXISTS idx_tools_tool_code ON tools(tool_code)")
     cur.execute("CREATE INDEX IF NOT EXISTS idx_inventory_status ON inventory(status)")
+
+    # 추가 추천 인덱스
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_inventory_tool_id ON inventory(tool_id)")
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_inventory_sub_name ON inventory(sub_name)")
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_inventory_registered ON inventory(registered_at)")
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_tools_category ON tools(category_id)")
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_categories_sub ON categories(sub_code)")
 
     conn.commit()
     conn.close()
