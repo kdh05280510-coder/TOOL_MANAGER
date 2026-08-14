@@ -544,11 +544,25 @@ class MainWindow(ctk.CTk):
             for i in range(quantity):
                 seq = f"{start_seq + i:02d}"
                 barcode = f"{tool_code}-{today}-{seq}"
+                dia = tool["diameter"]
+                if dia is None or str(dia).strip() == "":
+                    import re
+                    m = re.search(r"[Dd]\s*([0-9.]+)", str(tool["tool_name"] or ""))
+                    if m:
+                        dia = m.group(1)
+
+                leng = tool["length"]
+                if leng is None or str(leng).strip() == "":
+                    import re
+                    m = re.search(r"[Ll]\s*([0-9.]+)", str(tool["tool_name"] or ""))
+                    if m:
+                        leng = m.group(1)
+
                 sub_name = self.make_sub_name(
                     sub_code,
-                    str(tool["diameter"]) if tool["diameter"] else "",
-                    str(tool["length"]) if tool["length"] else "",
-                    str(tool["flute_count"]) if tool["flute_count"] else "",
+                    "" if dia is None else str(dia),
+                    "" if leng is None else str(leng),
+                    "" if tool["flute_count"] is None else str(tool["flute_count"]),
                     tool["thread_spec"] or "",
                     today, seq, is_grade_b
                 )

@@ -1,9 +1,19 @@
+import sys
 import sqlite3
 from pathlib import Path
 
 # DB 파일 위치
 DB_PATH = Path(__file__).parent.parent / "data" / "tools.db"
 
+def get_base_dir():
+    if getattr(sys, "frozen", False):
+        # exe로 실행할 때: exe가 있는 폴더
+        return Path(sys.executable).parent
+    else:
+        # python main.py 로 실행할 때
+        return Path(__file__).resolve().parent.parent
+
+DB_PATH = get_base_dir() / "data" / "tools.db"
 
 def get_connection():
     DB_PATH.parent.mkdir(parents=True, exist_ok=True)

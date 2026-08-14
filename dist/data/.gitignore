@@ -1,0 +1,13 @@
+# 데이터베이스
+data/*.db
+data/tools.db
+
+# 파이썬 캐시
+__pycache__/
+*.pyc
+*.pyo
+
+# 기타
+.vscode/
+*.log
+.env
