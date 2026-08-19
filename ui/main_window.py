@@ -175,6 +175,7 @@ class MainWindow(ctk.CTk):
     # 분류 / 제조사
     # --------------------------------------------------
     def on_main_category_change(self, choice):
+        self.current_main = choice
         conn = get_connection()
         cur = conn.cursor()
         cur.execute(
@@ -190,6 +191,11 @@ class MainWindow(ctk.CTk):
         conn.close()
 
     def on_sub_category_change(self, choice):
+        # SP 일때는 전부 보여주기
+        if  hasattr(self, "current_main") and self.current_main == "SP(특수)":
+            for key in self.entries:
+                self.entries[key]["row"].pack(fill="x", pady=4)
+            return
         for key in self.entries:
             self.entries[key]["row"].pack_forget()
 
