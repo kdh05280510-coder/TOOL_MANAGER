@@ -9,7 +9,7 @@ class MainWindow(ctk.CTk):
         super().__init__()
 
         self.title("공구 등록 프로그램")
-        self.geometry("700x650")
+        self.geometry("700x800")
         self.minsize(800, 600)
 
         ctk.set_appearance_mode("System")
@@ -68,7 +68,7 @@ class MainWindow(ctk.CTk):
         self.combo_maker.pack(padx=15, pady=(0, 12))
         self.combo_maker.bind("<KeyRelease>", self.on_maker_keyrelease)
 
-        self.check_grade_b = ctk.CTkCheckBox(left_frame, text="B급 재등록")
+        self.check_grade_b = ctk.CTkCheckBox(left_frame, text="B급 등록")
         self.check_grade_b.pack(anchor="w", padx=15, pady=10)
 
         # ----- 오른쪽: 입력 -----
@@ -124,24 +124,43 @@ class MainWindow(ctk.CTk):
 
             entry.bind("<Return>", make_handler(i))
 
-        # ----- 하단 버튼 -----
+                # ----- 하단 버튼 (레이아웃 이미지 기준) -----
         btn_frame = ctk.CTkFrame(self, fg_color="transparent")
         btn_frame.pack(fill="x", padx=20, pady=15)
 
+        # 등록 = 신규 등록
         ctk.CTkButton(
-            btn_frame, text="등록", width=120, height=40,
+            btn_frame, text="등록", width=100, height=36,
             command=self.on_register
-        ).pack(side="left", padx=8)
+        ).pack(side="left", padx=6)
 
-        ctk.CTkButton(
-            btn_frame, text="검색 등록", width=120, height=40,
-            fg_color="#2E8B57", command=self.on_reregister
-        ).pack(side="left", padx=8)
+        # 상품코드 빠른 입력 (검색 등록용)
+        self.entry_search_code = ctk.CTkEntry(
+            btn_frame, width=160, height=36,
+            placeholder_text="상품코드를 입력하세요"
+        )
+        self.entry_search_code.pack(side="left", padx=6)
 
+        # 검색 등록 = 상품코드로 재등록
         ctk.CTkButton(
-            btn_frame, text="목록 보기", width=120, height=40,
-            fg_color="#4682B4", command=self.on_show_list
-        ).pack(side="left", padx=8)
+            btn_frame, text="검색 등록", width=100, height=36,
+            fg_color="#2E8B57", hover_color="#256F46",
+            command=self.on_search_register
+        ).pack(side="left", padx=6)
+
+        # A급 목록
+        ctk.CTkButton(
+            btn_frame, text="A급 공구 목록", width=120, height=36,
+            fg_color="#3B8ED0",
+            command=lambda: self.on_show_list(grade="A")
+        ).pack(side="left", padx=6)
+
+        # B급 목록
+        ctk.CTkButton(
+            btn_frame, text="B급 공구 목록", width=120, height=36,
+            fg_color="#3B8ED0",
+            command=lambda: self.on_show_list(grade="B")
+        ).pack(side="left", padx=6)
 
         self.status_label = ctk.CTkLabel(self, text="준비됨", text_color="gray")
         self.status_label.pack(pady=(0, 10))
@@ -594,11 +613,22 @@ class MainWindow(ctk.CTk):
             self.status_label.configure(text="재등록 실패", text_color="red")
 
     # --------------------------------------------------
-    # 기타
+    # 검색등록
     # --------------------------------------------------
-    def on_show_list(self):
+
+    def on_search_register(self):
+        code = self.entry_search_code.get().strip()
+        if not code:
+            messagebox.showwarning("입력 오류", "상품코드를 입력하세요.")
+            return
+        # 위쪽 상품코드 칸에도 넣고 기존 재등록 로직 사용
+        self.entries["tool_code"]["entry"].delete(0, "end")
+        self.entries["tool_code"]["entry"].insert(0, code)
+        self.on_reregister()
+
+    def on_show_list(self, grade=None):
         from ui.list_window import ListWindow
-        ListWindow(self)
+        ListWindow(self, grade=grade)  # grade: "A" / "B" / None
 
     def on_reset(self):
         for key in self.entries:

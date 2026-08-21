@@ -8,8 +8,37 @@ from database.db import get_connection
 
 
 class ListWindow(ctk.CTkToplevel):
-    def __init__(self, parent):
+    def __init__(self, parent, grade=None):
         super().__init__(parent)
+        self.grade = grade  # "A", "B", None
+
+        if grade == "A":
+            self.title("A급 공구 목록")
+        elif grade == "B":
+            self.title("B급 공구 목록")
+        else:
+            self.title("공구 목록")
+
+        self.geometry("1800x650")
+        self.minsize(900, 500)
+        self.transient(parent)
+        self.grab_set()
+
+        self.page_size = 50
+        self.current_page = 1
+        self.total_count = 0
+        self.select_mode = False
+        self.checked_ids = set()
+        self.row_vars = {}
+
+        self.col_widths = [40, 90, 90, 200, 200, 220, 200, 200, 60, 70, 110]
+        self.col_titles = ["", "대분류", "소분류", "제조사", "상품명", "상품명(부)",
+                           "바코드", "상품코드", "생크", "전체길이", "등록일"]
+
+        self.create_widgets()
+        self.load_data()
+        super().__init__(parent)
+        self.grade = grade # A, B, None
         self.title("공구 목록")
         self.geometry("1800x650")
         self.minsize(900, 500)
@@ -111,7 +140,7 @@ class ListWindow(ctk.CTkToplevel):
             self.current_page += 1
             self.load_data()
 
-    def load_data(self):
+    
         for w in self.scroll.winfo_children():
             w.destroy()
         self.row_vars.clear()
@@ -228,6 +257,147 @@ class ListWindow(ctk.CTkToplevel):
                 fr, text="삭제", width=50, height=24, fg_color="#C0392B",
                 command=lambda i=inv_id, b=row["barcode"]: self.delete_one(i, b),
                 ).grid(row=0, column=len(self.col_widths) + 1, padx=2)
+
+    def load_data(self):
+        for w in self.scroll.winfo_children():
+            w.destroy()
+        self.row_vars.clear()
+
+        keyword = self.search_entry.get().strip()
+        offset = (self.current_page - 1) * self.page_size
+
+        # A급 / B급 조건
+        grade_sql = ""
+        if getattr(self, "grade", None) == "A":
+            grade_sql = " AND (IFNULL(i.is_grade_b, 0) = 0)"
+        elif getattr(self, "grade", None) == "B":
+            grade_sql = " AND (IFNULL(i.is_grade_b, 0) = 1)"
+
+        conn = get_connection()
+        cur = conn.cursor()
+
+        # ----- 건수 -----
+        if keyword:
+            like = f"%{keyword}%"
+            cur.execute(f"""
+                SELECT COUNT(*) as cnt FROM inventory i
+                JOIN tools t ON i.tool_id = t.id
+                LEFT JOIN categories c ON t.category_id = c.id
+                WHERE (
+                    i.barcode LIKE ? OR i.sub_name LIKE ? OR t.tool_code LIKE ?
+                    OR t.tool_name LIKE ? OR IFNULL(c.main_name,'') LIKE ?
+                    OR IFNULL(c.sub_code,'') LIKE ?
+                )
+                {grade_sql}
+            """, (like, like, like, like, like, like))
+        else:
+            if grade_sql:
+                cur.execute(f"""
+                    SELECT COUNT(*) as cnt FROM inventory i
+                    WHERE 1=1 {grade_sql}
+                """)
+            else:
+                cur.execute("SELECT COUNT(*) as cnt FROM inventory")
+
+        self.total_count = cur.fetchone()["cnt"]
+
+        # ----- 목록 -----
+        sql = """
+            SELECT i.id, c.main_name, c.sub_code, m.name as maker_name,
+                   t.tool_name, i.sub_name, i.barcode, t.tool_code,
+                   t.shank_dia, t.total_length, i.registered_at
+            FROM inventory i
+            JOIN tools t ON i.tool_id = t.id
+            LEFT JOIN categories c ON t.category_id = c.id
+            LEFT JOIN makers m ON t.maker_id = m.id
+        """
+
+        if keyword:
+            like = f"%{keyword}%"
+            cur.execute(sql + f"""
+                WHERE (
+                    i.barcode LIKE ? OR i.sub_name LIKE ? OR t.tool_code LIKE ?
+                    OR t.tool_name LIKE ? OR IFNULL(c.main_name,'') LIKE ?
+                    OR IFNULL(c.sub_code,'') LIKE ?
+                )
+                {grade_sql}
+                ORDER BY i.id DESC LIMIT ? OFFSET ?
+            """, (like, like, like, like, like, like, self.page_size, offset))
+        else:
+            cur.execute(
+                sql + f" WHERE 1=1 {grade_sql} ORDER BY i.id DESC LIMIT ? OFFSET ?",
+                (self.page_size, offset)
+            )
+
+        rows = cur.fetchall()
+        conn.close()
+
+        max_page = max(1, (self.total_count + self.page_size - 1) // self.page_size)
+        self.page_label.configure(text=f"{self.current_page} / {max_page}")
+        self.count_label.configure(text=f"총 {self.total_count}건")
+        self.btn_prev.configure(state="normal" if self.current_page > 1 else "disabled")
+        self.btn_next.configure(state="normal" if self.current_page < max_page else "disabled")
+
+        if self.select_mode:
+            self.btn_export_selected.pack(side="right", padx=5)
+            if hasattr(self, "btn_cancel_select"):
+                self.btn_cancel_select.pack(side="right", padx=5)
+        else:
+            self.btn_export_selected.pack_forget()
+            if hasattr(self, "btn_cancel_select"):
+                self.btn_cancel_select.pack_forget()
+
+        if not rows:
+            ctk.CTkLabel(self.scroll, text="데이터 없음").pack(pady=20)
+            return
+
+        for row in rows:
+            inv_id = str(row["id"])
+
+            fr = ctk.CTkFrame(self.scroll, fg_color="transparent")
+            fr.pack(fill="x", pady=1)
+
+            for i, w in enumerate(self.col_widths):
+                fr.grid_columnconfigure(i, minsize=w)
+
+            if self.select_mode:
+                var = ctk.BooleanVar(value=False)
+                self.row_vars[inv_id] = var
+                ctk.CTkCheckBox(
+                    fr, text="", width=self.col_widths[0], variable=var
+                ).grid(row=0, column=0, padx=2, sticky="w")
+            else:
+                ctk.CTkLabel(
+                    fr, text="", width=self.col_widths[0]
+                ).grid(row=0, column=0, padx=2, sticky="w")
+
+            values = [
+                row["main_name"] or "",
+                row["sub_code"] or "",
+                row["maker_name"] or "",
+                row["tool_name"] or "",
+                row["sub_name"] or "",
+                row["barcode"] or "",
+                row["tool_code"] or "",
+                self.fmt_num(row["shank_dia"]),
+                self.fmt_num(row["total_length"]),
+                (row["registered_at"] or "")[:16],
+            ]
+
+            for col, text in enumerate(values, start=1):
+                ctk.CTkLabel(
+                    fr, text=text, width=self.col_widths[col], anchor="w"
+                ).grid(row=0, column=col, padx=2, sticky="w")
+
+            ctk.CTkButton(
+                fr, text="수정", width=50, height=24, fg_color="#2E86C1",
+                command=lambda i=inv_id: self.edit_item(i)
+            ).grid(row=0, column=len(self.col_widths), padx=2)
+
+            ctk.CTkButton(
+                fr, text="삭제", width=50, height=24, fg_color="#C0392B",
+                command=lambda i=inv_id, b=row["barcode"]: self.delete_one(i, b)
+            ).grid(row=0, column=len(self.col_widths) + 1, padx=2)
 
     def fmt_num(self, v):
 
@@ -578,11 +748,13 @@ class ListWindow(ctk.CTkToplevel):
         cur.execute("""
             SELECT i.id as inv_id, i.barcode, i.sub_name,
                    t.id as tool_id, t.tool_name, t.tool_code,
-                   t.shank_dia, t.total_length, t.category_id,
-                   c.main_name, c.sub_code
+                   t.shank_dia, t.total_length, t.category_id, t.maker_id,
+                   c.main_name, c.sub_code,
+                   m.name as maker_name
             FROM inventory i
             JOIN tools t ON i.tool_id = t.id
             LEFT JOIN categories c ON t.category_id = c.id
+            LEFT JOIN makers m ON t.maker_id = m.id
             WHERE i.id = ?
         """, (inv_id,))
         row = cur.fetchone()
@@ -598,6 +770,10 @@ class ListWindow(ctk.CTkToplevel):
             (current_main,)
         )
         sub_list = [r["sub_code"] for r in cur.fetchall()]
+
+        # 제조사 목록
+        cur.execute("SELECT name FROM makers WHERE is_active = 1 ORDER BY name")
+        maker_list = [r["name"] for r in cur.fetchall()]
         conn.close()
 
         if not row:
@@ -606,7 +782,7 @@ class ListWindow(ctk.CTkToplevel):
 
         dialog = ctk.CTkToplevel(self)
         dialog.title("공구 수정")
-        dialog.geometry("420x520")
+        dialog.geometry("420x560")
         dialog.transient(self)
         dialog.grab_set()
 
@@ -631,6 +807,18 @@ class ListWindow(ctk.CTkToplevel):
             combo_sub.set(row["sub_code"])
         elif sub_list:
             combo_sub.set(sub_list[0])
+
+        # ----- 제조사 -----
+        fr_maker = ctk.CTkFrame(dialog, fg_color="transparent")
+        fr_maker.pack(fill="x", padx=20, pady=5)
+        ctk.CTkLabel(fr_maker, text="제조사", width=100, anchor="w").pack(side="left")
+        combo_maker = ctk.CTkComboBox(fr_maker, width=240, values=maker_list)
+        combo_maker.pack(side="left")
+        if row["maker_name"]:
+            combo_maker.set(row["maker_name"])
+        elif maker_list:
+            combo_maker.set(maker_list[0])
+
 
         def on_main_change(choice):
             conn = get_connection()
@@ -671,6 +859,7 @@ class ListWindow(ctk.CTkToplevel):
             barcode = fields["barcode"].get().strip()
             main_name = combo_main.get().strip()
             sub_code = combo_sub.get().strip()
+            maker_name = combo_maker.get().strip()
 
             if not barcode:
                 messagebox.showwarning("오류", "바코드는 필수입니다.")
@@ -714,16 +903,25 @@ class ListWindow(ctk.CTkToplevel):
                     return
                 category_id = cat["id"]
 
+                # 제조사 id
+                maker_id = None
+                if maker_name:
+                    cur.execute("SELECT id FROM makers WHERE name = ?", (maker_name,))
+                    mk = cur.fetchone()
+                    if mk:
+                        maker_id = mk["id"]
+
                 shank = fields["shank_dia"].get().strip()
                 total = fields["total_length"].get().strip()
 
                 cur.execute("""
                     UPDATE tools
-                    SET category_id=?, tool_name=?, tool_code=?,
+                    SET category_id=?, maker_id=?, tool_name=?, tool_code=?,
                         shank_dia=?, total_length=?
                     WHERE id=?
                 """, (
                     category_id,
+                    maker_id,
                     fields["tool_name"].get().strip(),
                     fields["tool_code"].get().strip() or None,
                     float(shank) if shank else None,

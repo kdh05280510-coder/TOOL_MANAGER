@@ -81,7 +81,7 @@ def seed_makers(cur):
         "-",
         "ATOM-ADLL", "ATOM-ADPN", "ATOM-ADR", "ATOM-ADR-SUS", "ATOM-ADR-SV",
         "ATOM-ADRL", "ATOM-ADRL-SUS", "ATOM-ADRS", "ATOM-ADRS-SV", "ATOM-ADRSL", "ATOM-ASWR",
-        "FPTOOLS", "GUHRING-5768", "HITACHI", "IWATA",
+        "FPTOOLS", "GUHRING-5768", "HITACHI","Hofmann & Vratny", "IWATA",
         "JJTOOLS", "JJTOOLS (for ABS)", "JJTOOLS (for ALU)", "JJTOOLS (for SUS)",
         "JJTOOLS (for G-TAC)", "JJTOOLS (for G-TAG)", "JJTOOLS (HARD)", "JJTOOLS (JJ)",
         "JJTOOLS (R-TAG)",
