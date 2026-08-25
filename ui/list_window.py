@@ -114,7 +114,7 @@ class ListWindow(ctk.CTkToplevel):
             command=lambda: self.export_to_excel(True)
         )
         self.btn_cancel_select = ctk.CTkButton(
-            bottom, text="Toolyne 등록 취소", width=120,
+            bottom, text="체크박스 해제", width=120,
             fg_color="#7F8C8D", hover_color="#566573",
             command=self.cancel_select_mode
         )
@@ -1113,7 +1113,7 @@ class ListWindow(ctk.CTkToplevel):
         self.checked_ids.clear()
         self.row_vars.clear()
         self.load_data()
-        messagebox.showinfo("취소", "Toolyne 등록을 취소했습니다.")
+        messagebox.showinfo("취소", "체크박스를 해제하였습니다.")
 
     def on_export_excel(self):
         dialog = ctk.CTkToplevel(self)

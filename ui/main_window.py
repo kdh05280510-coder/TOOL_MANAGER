@@ -218,6 +218,10 @@ class MainWindow(ctk.CTk):
         for key in self.entries:
             self.entries[key]["row"].pack_forget()
 
+        # 숨기기 전에 값 초기화 (이전 분류 값 잔류 방지)
+        for key in self.entries:
+            self.entries[key]["entry"].delete(0, "end")
+
         endmill_prefixes = ["EM", "BM", "BN", "RF", "LN"]
         is_endmill = any(choice.startswith(p) for p in endmill_prefixes)
         is_drill = choice in ["DR", "DR-SGESS", "DR-SGES", "CD", "NC", "FD", "MD"]
@@ -633,7 +637,7 @@ class MainWindow(ctk.CTk):
     def on_reset(self):
         for key in self.entries:
             self.entries[key]["entry"].delete(0, "end")
-        self.check_grade_b.deselect()
+        # self.check_grade_b.deselect() << B급 등록 체크박스 초기화 코드
         self.status_label.configure(text="초기화 완료", text_color="green")
 
     def fmt_num(self, value):
@@ -661,16 +665,26 @@ class MainWindow(ctk.CTk):
         return " ".join(parts) if parts else "공구"
 
     def make_sub_name(self, sub_code, diameter, length, flute_count, thread_spec, today, seq, is_grade_b):
-        tool_type = self.get_tool_type(sub_code)
+        tool_type = self.get_tool_type(sub_code)  # 예: "플랫 드릴"
+
         if sub_code in ["TAP", "TAP-H", "THD"]:
-            name = f"{thread_spec} {tool_type}"
+            name = f"{thread_spec or ''} {tool_type}".strip()
         else:
-            name = f"D{self.fmt_num(diameter)}" if diameter else ""
-            if flute_count:
-                name += f" {flute_count}날"
-            name += f" {tool_type}"
+            parts = []
+            if diameter is not None and str(diameter).strip() != "":
+                parts.append(f"D{self.fmt_num(diameter)}")
+            if length is not None and str(length).strip() != "":
+                parts.append(f"L{self.fmt_num(length)}")
+            if flute_count is not None and str(flute_count).strip() != "":
+                parts.append(f"{flute_count}날")
+            if tool_type:
+                parts.append(tool_type)
+            name = " ".join(parts)
+
+        # 날짜-순번은 한 번만
         if not is_grade_b:
-            name += f" {today}-{seq}"
+            name = f"{name} {today}-{seq}".strip()
+
         return name.strip()
 
     def get_tool_type(self, sub_code):
