@@ -1,0 +1,46 @@
+========================================
+  공구관리프로그램 - GitHub 치트시트
+========================================
+
+■ 현재 폴더로 이동
+cd D:\tool_manager
+
+
+■ 1) 깃허브에 올리기 (푸시)
+git add .
+git commit -m "수정 내용 적기"
+git push
+
+(ver2 브랜치일 때)
+git push origin ver2
+
+
+■ 2) 깃허브에서 가져오기 (받기)
+git pull
+
+
+■ 3) 다른 PC에서 처음 받기 (클론)
+git clone https://github.com/kdh05280510-coder/TOOL_MANAGER.git
+cd TOOL_MANAGER
+
+
+■ 4) 상태 확인
+git status
+git branch
+
+
+■ 5) 브랜치
+git checkout -b ver2
+git checkout main
+git checkout ver2
+
+
+■ 순서 기억
+저장(commit) → 올리기(push)
+받기(pull) → 작업
+
+
+■ 커밋 → 푸시
+commit = 내 PC에 기록
+push   = GitHub에 업로드
+========================================
