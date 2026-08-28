@@ -50,19 +50,19 @@ class ListWindow(ctk.CTkToplevel):
         except (TypeError, ValueError):
             return str(v)
 
-    def _filter_text(self, combo, placeholder):
-        v = combo.get().strip()
+    def _filter_text(self, entry, placeholder):
+        v = entry.get().strip()
         if not v or v == placeholder:
             return ""
         return v
 
     def refresh_filter_options(self):
-        f_main = self._filter_text(self.combo_f_main, "대분류")
-        f_sub = self._filter_text(self.combo_f_sub, "소분류")
-        f_maker = self._filter_text(self.combo_f_maker, "제조사")
-        f_name = self._filter_text(self.combo_f_name, "상품명")
-        f_barcode = self._filter_text(self.combo_f_barcode, "바코드")
-        f_code = self._filter_text(self.combo_f_code, "상품코드")
+        f_main = self._filter_text(self.entry_f_main, "대분류")
+        f_sub = self._filter_text(self.entry_f_sub, "소분류")
+        f_maker = self._filter_text(self.entry_f_maker, "제조사")
+        f_name = self._filter_text(self.entry_f_name, "상품명")
+        f_barcode = self._filter_text(self.entry_f_barcode, "바코드")
+        f_code = self._filter_text(self.entry_f_code, "상품코드")
 
         grade_sql = ""
         if getattr(self, "grade", None) == "A":
@@ -121,83 +121,16 @@ class ListWindow(ctk.CTkToplevel):
         }
         conn.close()
 
-        self.combo_f_main.configure(values=["대분류"] + self.filter_options["main"])
-        self.combo_f_sub.configure(values=["소분류"] + self.filter_options["sub"])
-        self.combo_f_maker.configure(values=["제조사"] + self.filter_options["maker"])
-        self.combo_f_name.configure(values=["상품명"] + self.filter_options["name"])
-        self.combo_f_barcode.configure(values=["바코드"] + self.filter_options["barcode"])
-        self.combo_f_code.configure(values=["상품코드"] + self.filter_options["code"])
-        conn = get_connection()
-        cur = conn.cursor()
-
-        grade_sql = ""
-        if getattr(self, "grade", None) == "A":
-            grade_sql = " AND IFNULL(i.is_grade_b, 0) = 0"
-        elif getattr(self, "grade", None) == "B":
-            grade_sql = " AND IFNULL(i.is_grade_b, 0) = 1"
-
-        def uniq(sql):
-            cur.execute(sql)
-            return [str(r[0]) for r in cur.fetchall() if r[0]]
-
-        mains = uniq(f"""
-            SELECT DISTINCT c.main_name FROM inventory i
-            JOIN tools t ON i.tool_id = t.id
-            LEFT JOIN categories c ON t.category_id = c.id
-            WHERE c.main_name IS NOT NULL {grade_sql}
-            ORDER BY c.main_name
-        """)
-        subs = uniq(f"""
-            SELECT DISTINCT c.sub_code FROM inventory i
-            JOIN tools t ON i.tool_id = t.id
-            LEFT JOIN categories c ON t.category_id = c.id
-            WHERE c.sub_code IS NOT NULL {grade_sql}
-            ORDER BY c.sub_code
-        """)
-        makers = uniq(f"""
-            SELECT DISTINCT m.name FROM inventory i
-            JOIN tools t ON i.tool_id = t.id
-            LEFT JOIN makers m ON t.maker_id = m.id
-            WHERE m.name IS NOT NULL {grade_sql}
-            ORDER BY m.name
-        """)
-        names = uniq(f"""
-            SELECT DISTINCT t.tool_name FROM inventory i
-            JOIN tools t ON i.tool_id = t.id
-            WHERE t.tool_name IS NOT NULL {grade_sql}
-            ORDER BY t.tool_name
-        """)
-        barcodes = uniq(f"""
-            SELECT DISTINCT i.barcode FROM inventory i
-            WHERE i.barcode IS NOT NULL {grade_sql}
-            ORDER BY i.barcode
-        """)
-        codes = uniq(f"""
-            SELECT DISTINCT t.tool_code FROM inventory i
-            JOIN tools t ON i.tool_id = t.id
-            WHERE t.tool_code IS NOT NULL {grade_sql}
-            ORDER BY t.tool_code
-        """)
-        conn.close()
-
-        self.combo_f_main.configure(values=["대분류"] + mains)
-        self.combo_f_sub.configure(values=["소분류"] + subs)
-        self.combo_f_maker.configure(values=["제조사"] + makers)
-        self.combo_f_name.configure(values=["상품명"] + names)
-        self.combo_f_barcode.configure(values=["바코드"] + barcodes)
-        self.combo_f_code.configure(values=["상품코드"] + codes)
-
     def on_filter_change(self, event=None):
         self.current_page = 1
         self.load_data()
 
     def reset_filters(self):
-        self.combo_f_main.set("대분류")
-        self.combo_f_sub.set("소분류")
-        self.combo_f_maker.set("제조사")
-        self.combo_f_name.set("상품명")
-        self.combo_f_barcode.set("바코드")
-        self.combo_f_code.set("상품코드")
+        for e in (
+            self.entry_f_main, self.entry_f_sub, self.entry_f_maker,
+            self.entry_f_name, self.entry_f_barcode, self.entry_f_code
+        ):
+            e.delete(0, "end")
         if hasattr(self, "search_entry"):
             self.search_entry.delete(0, "end")
         self.refresh_filter_options()
@@ -237,44 +170,33 @@ class ListWindow(ctk.CTkToplevel):
         filter_frame = ctk.CTkFrame(self, fg_color="transparent")
         filter_frame.pack(fill="x", padx=15, pady=6)
 
-        self.combo_f_main = ctk.CTkComboBox(filter_frame, width=140, values=["대분류"], state="readonly")
-        self.combo_f_sub = ctk.CTkComboBox(filter_frame, width=140, values=["소분류"], state="readonly")
-        self.combo_f_maker = ctk.CTkComboBox(filter_frame, width=160, values=["제조사"], state="readonly")
-        self.combo_f_name = ctk.CTkComboBox(filter_frame, width=160, values=["상품명"], state="readonly")
-        self.combo_f_barcode = ctk.CTkComboBox(filter_frame, width=180, values=["바코드"], state="readonly")
-        self.combo_f_code = ctk.CTkComboBox(filter_frame, width=150, values=["상품코드"], state="readonly")
+        def make_filter(placeholder, key, width):
+            wrap = ctk.CTkFrame(filter_frame, fg_color="transparent")
+            wrap.pack(side="left", padx=4)
+            e = ctk.CTkEntry(wrap, width=width, placeholder_text=placeholder)
+            e.pack(side="left")
+            e.bind("<Return>", lambda ev: self.apply_filters())
+            ctk.CTkButton(
+                wrap, text="▼", width=28, height=28,
+                command=lambda: self.open_filter_list(e, placeholder, self.filter_options.get(key, []))
+            ).pack(side="left", padx=2)
+            return e
 
-        self.combo_f_main.set("대분류")
-        self.combo_f_sub.set("소분류")
-        self.combo_f_maker.set("제조사")
-        self.combo_f_name.set("상품명")
-        self.combo_f_barcode.set("바코드")
-        self.combo_f_code.set("상품코드")
+        self.entry_f_main = make_filter("대분류", "main", 110)
+        self.entry_f_sub = make_filter("소분류", "sub", 110)
+        self.entry_f_maker = make_filter("제조사", "maker", 130)
+        self.entry_f_name = make_filter("상품명", "name", 130)
+        self.entry_f_barcode = make_filter("바코드", "barcode", 150)
+        self.entry_f_code = make_filter("상품코드", "code", 120)
 
-        self.combo_f_main.pack(side="left", padx=4)
-        self.combo_f_sub.pack(side="left", padx=4)
-        self.combo_f_maker.pack(side="left", padx=4)
-        self.combo_f_name.pack(side="left", padx=4)
-        self.combo_f_barcode.pack(side="left", padx=4)
-        self.combo_f_code.pack(side="left", padx=4)
-
-        self.combo_f_main.bind("<Button-1>", lambda e: self.open_filter_list(
-            self.combo_f_main, "대분류", self.filter_options.get("main", [])))
-        self.combo_f_sub.bind("<Button-1>", lambda e: self.open_filter_list(
-            self.combo_f_sub, "소분류", self.filter_options.get("sub", [])))
-        self.combo_f_maker.bind("<Button-1>", lambda e: self.open_filter_list(
-            self.combo_f_maker, "제조사", self.filter_options.get("maker", [])))
-        self.combo_f_name.bind("<Button-1>", lambda e: self.open_filter_list(
-            self.combo_f_name, "상품명", self.filter_options.get("name", [])))
-        self.combo_f_barcode.bind("<Button-1>", lambda e: self.open_filter_list(
-            self.combo_f_barcode, "바코드", self.filter_options.get("barcode", [])))
-        self.combo_f_code.bind("<Button-1>", lambda e: self.open_filter_list(
-            self.combo_f_code, "상품코드", self.filter_options.get("code", [])))
-
+        ctk.CTkButton(
+            filter_frame, text="검색", width=70, height=28,
+            command=self.apply_filters
+        ).pack(side="left", padx=4)
         ctk.CTkButton(
             filter_frame, text="필터 초기화", width=90, height=28,
             fg_color="#7F8C8D", command=self.reset_filters
-        ).pack(side="left", padx=8)
+        ).pack(side="left", padx=4)
 
         self.refresh_filter_options()
 
@@ -370,12 +292,12 @@ class ListWindow(ctk.CTkToplevel):
         elif getattr(self, "grade", None) == "B":
             grade_sql = " AND IFNULL(i.is_grade_b, 0) = 1"
 
-        f_main = self._filter_text(self.combo_f_main, "대분류")
-        f_sub = self._filter_text(self.combo_f_sub, "소분류")
-        f_maker = self._filter_text(self.combo_f_maker, "제조사")
-        f_name = self._filter_text(self.combo_f_name, "상품명")
-        f_barcode = self._filter_text(self.combo_f_barcode, "바코드")
-        f_code = self._filter_text(self.combo_f_code, "상품코드")
+        f_main = self._filter_text(self.entry_f_main, "대분류")
+        f_sub = self._filter_text(self.entry_f_sub, "소분류")
+        f_maker = self._filter_text(self.entry_f_maker, "제조사")
+        f_name = self._filter_text(self.entry_f_name, "상품명")
+        f_barcode = self._filter_text(self.entry_f_barcode, "바코드")
+        f_code = self._filter_text(self.entry_f_code, "상품코드")
 
         extra = ""
         extra_params = []
@@ -389,8 +311,16 @@ class ListWindow(ctk.CTkToplevel):
             extra += " AND IFNULL(m.name,'') LIKE ?"
             extra_params.append(f"%{f_maker}%")
         if f_name:
-            extra += " AND IFNULL(t.tool_name,'') LIKE ?"
-            extra_params.append(f"%{f_name}%")
+            import re
+            m = re.match(r"^[dD]\s*(\d+)$", f_name)
+            if m:
+                n = m.group(1)
+                extra += " AND UPPER(IFNULL(t.tool_name,'')) LIKE ?"
+                extra_params.append(f"%D{n}.%")
+            else:
+                for token in f_name.split():
+                    extra += " AND UPPER(IFNULL(t.tool_name,'')) LIKE ?"
+                    extra_params.append(f"%{token.upper()}%")
         if f_barcode:
             extra += " AND IFNULL(i.barcode,'') LIKE ?"
             extra_params.append(f"%{f_barcode}%")
@@ -990,26 +920,37 @@ class ListWindow(ctk.CTkToplevel):
         self.checked_ids.clear()
         self.load_data()
 
-    def open_filter_list(self, combo, title, values):
+    
+    def apply_filters(self, event=None):
+        self.current_page = 1
+        self.refresh_filter_options()
+        self.load_data()
+
+    def open_filter_list(self, entry, title, values):
         win = ctk.CTkToplevel(self)
         win.title(title)
         win.geometry("280x360")
         win.transient(self)
         win.grab_set()
 
-        entry = ctk.CTkEntry(win, placeholder_text="검색")
-        entry.pack(fill="x", padx=10, pady=8)
+        search = ctk.CTkEntry(win, placeholder_text="검색")
+        search.pack(fill="x", padx=10, pady=8)
 
         box = ctk.CTkScrollableFrame(win, height=280)
         box.pack(fill="both", expand=True, padx=10, pady=(0, 10))
 
+        values = sorted(values, key=lambda x: str(x).upper())
+
         def render(keyword=""):
             for w in box.winfo_children():
                 w.destroy()
-            kw = keyword.strip().lower()
-            items = [title] + [v for v in values if v and v != title]
-            if kw:
-                items = [title] + [v for v in items[1:] if kw in v.lower()]
+            tokens = keyword.strip().lower().split()
+            items = [title] + list(values)
+            if tokens:
+                items = [title] + [
+                    v for v in values
+                    if all(t in str(v).lower() for t in tokens)
+                ]
             for v in items:
                 ctk.CTkButton(
                     box, text=v, anchor="w",
@@ -1018,15 +959,12 @@ class ListWindow(ctk.CTkToplevel):
                 ).pack(fill="x", pady=1)
 
         def pick(v):
-            combo.set(v)
+            entry.delete(0, "end")
+            if v != title:
+                entry.insert(0, v)
             win.destroy()
-            self.current_page = 1
-            self.refresh_filter_options()
-            self.load_data()
+            self.apply_filters()
 
-        def on_key(_e):
-            render(entry.get())
-
-        entry.bind("<KeyRelease>", on_key)
+        search.bind("<KeyRelease>", lambda e: render(search.get()))
         render()
-        entry.focus()
+        search.focus()      
