@@ -775,8 +775,8 @@ class ListWindow(ctk.CTkToplevel):
         cur = conn.cursor()
         sql = """
             SELECT c.main_name as 대분류, c.sub_code as 소분류, m.name as 제조사,
-                   t.tool_name as 상품명, i.sub_name as 상품명_부, i.barcode as 바코드,
-                   t.tool_code as 상품코드, t.shank_dia as 생크지름,
+                   t.tool_name as 상품명, i.sub_name as 상품명_부, t.tool_code as 상품코드,
+                   i.barcode as 바코드, t.shank_dia as 생크지름,
                    t.total_length as 전체길이, i.registered_at as 등록일
             FROM inventory i
             JOIN tools t ON i.tool_id = t.id
