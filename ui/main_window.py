@@ -1,91 +1,47 @@
 import customtkinter as ctk
 from datetime import datetime
 import tkinter.messagebox as messagebox
+import webbrowser
+from urllib.parse import quote_plus
 from database.db import get_connection
+
+try:
+    from database.catalog import find_catalog_specs, catalog_count, init_catalog
+except Exception:
+    find_catalog_specs = None
+    catalog_count = None
+    init_catalog = None
 
 
 # 보통나사 / 가는나사 (소분류 UNC·UNF가 아니라 버튼으로 구분)
 TAP_LISTS = {
-    "metric_coarse": ["M2 x 0.4", "M2.5 x 0.45", "M3 x 0.5",
-        "M3.5 x 0.6", "M4 x 0.7", "M4.5 x 0.75", "M5 x 0.8",
-        "M6 x 1.0", "M7 x 1.0", "M8 x 1.25", "M9 x 1.25", 
-        "M10 x 1.5", "M11 x 1.5", "M12 x 1.75", "M14 x 2.0", 
-        "M16 x 2.0", "M18 x 2.5", "M20 x 2.5", "M22 x 2.5", 
-        "M24 x 3.0", "M27 x 3.0", "M30 x 3.5", "M33 x 3.5", 
-        "M36 x 4.0", "M42 x 4.5", "M48 x 5.0",
+    "metric_coarse": [
+        "M2 x 0.4", "M2.5 x 0.45", "M3 x 0.5", "M4 x 0.7",
+        "M5 x 0.8", "M6 x 1.0", "M8 x 1.25", "M10 x 1.5",
+        "M12 x 1.75", "M14 x 2.0", "M16 x 2.0", "M18 x 2.5",
+        "M20 x 2.5", "M24 x 3.0",
     ],
-    "metric_fine": ["M2 x 0.25", "M2.5 x 0.35", "M3 x 0.35", 
-        "M3.5 x 0.35", "M4 x 0.5", "M4.5 x 0.5", "M5 x 0.5", 
-        "M6 x 0.75", "M7 x 0.75", "M8 x 0.75", "M8 x 1.0", 
-        "M9 x 0.75", "M9 x 1.0", "M10 x 0.75", "M10 x 1.0", 
-        "M10 x 1.25", "M11 x 0.75", "M11 x 1.0", "M12 x 1.0", 
-        "M12 x 1.25", "M12 x 1.5", "M14 x 1.0", "M14 x 1.25", 
-        "M14 x 1.5", "M16 x 1.0", "M16 x 1.5", "M18 x 1.0", 
-        "M18 x 1.5", "M18 x 2.0", "M20 x 1.0", "M20 x 1.5", 
-        "M20 x 2.0", "M22 x 1.5", "M22 x 2.0", "M24 x 1.5", 
-        "M24 x 2.0", "M27 x 1.5", "M27 x 2.0", "M30 x 1.5", 
-        "M30 x 2.0", "M33 x 2.0", "M36 x 2.0", "M36 x 3.0", 
-        "M42 x 2.0", "M42 x 3.0", "M48 x 2.0", "M48 x 3.0",
+    "metric_fine": [
+        "M8 x 1.0", "M10 x 1.0", "M10 x 1.25", "M12 x 1.25",
+        "M12 x 1.5", "M14 x 1.5", "M16 x 1.5", "M18 x 1.5",
+        "M20 x 1.5", "M20 x 2.0", "M24 x 2.0",
     ],
-    "inch_coarse": ["#4-40 UNC", "#5-40 UNC", "#6-32 UNC", "#8-32 UNC", 
-        "#10-24 UNC", "#12-24 UNC", "1/4-20 UNC", "5/16-18 UNC", 
-        "3/8-16 UNC", "7/16-14 UNC", "1/2-13 UNC", "9/16-12 UNC", 
-        "5/8-11 UNC", "3/4-10 UNC", "7/8-9 UNC", "1-8 UNC", 
-        "1 1/8-7 UNC", "1 1/4-7 UNC", "1 3/8-6 UNC", "1 1/2-6 UNC", "1 3/4-5 UNC", "2-4 1/2 UNC"
+    "inch_coarse": [
+        "4-40 UNC", "6-32 UNC", "8-32 UNC", "10-24 UNC",
+        "1/4-20 UNC", "5/16-18 UNC", "3/8-16 UNC", "7/16-14 UNC", "1/2-13 UNC",
     ],
-    "inch_fine": ["#4-48 UNF", "#5-44 UNF", "#6-40 UNF", "#8-36 UNF", 
-        "#10-32 UNF", "#12-28 UNF", "1/4-28 UNF", "5/16-24 UNF", 
-        "3/8-24 UNF", "7/16-20 UNF", "1/2-20 UNF", "9/16-18 UNF", 
-        "5/8-18 UNF", "3/4-16 UNF", "7/8-14 UNF", "1-12 UNF", 
-        "1 1/8-12 UNF", "1 1/4-12 UNF", "1 3/8-12 UNF", "1 1/2-12 UNF"
+    "inch_fine": [
+        "4-48 UNF", "6-40 UNF", "8-36 UNF", "10-32 UNF",
+        "1/4-28 UNF", "5/16-24 UNF", "3/8-24 UNF", "7/16-20 UNF", "1/2-20 UNF",
     ],
-    "heli_metric_coarse": ["M2 x 0.4 STI", "M2.2 x 0.45 STI", "M2.5 x 0.45 STI", "M3 x 0.5 STI", 
-        "M3.5 x 0.6 STI", "M4 x 0.7 STI", "M5 x 0.8 STI", "M6 x 1.0 STI", 
-        "M7 x 1.0 STI", "M8 x 1.25 STI", "M9 x 1.25 STI", "M10 x 1.5 STI", 
-        "M11 x 1.5 STI", "M12 x 1.75 STI", "M14 x 2.0 STI", "M16 x 2.0 STI", 
-        "M18 x 2.5 STI", "M20 x 2.5 STI", "M22 x 2.5 STI", "M24 x 3.0 STI", 
-        "M27 x 3.0 STI", "M30 x 3.5 STI", "M33 x 3.5 STI", "M36 x 4.0 STI", "M39 x 4.0 STI"],
-    "heli_metric_fine": ["M8 x 1.0 STI", "M10 x 1.0 STI", "M10 x 1.25 STI", "M11 x 1.0 STI", 
-        "M11 x 1.25 STI", "M12 x 1.25 STI", "M12 x 1.5 STI", "M14 x 1.5 STI", 
-        "M16 x 1.5 STI", "M18 x 1.5 STI", "M18 x 2.0 STI", "M20 x 1.5 STI", 
-        "M20 x 2.0 STI", "M22 x 1.5 STI", "M22 x 2.0 STI", "M24 x 2.0 STI", 
-        "M27 x 2.0 STI", "M30 x 2.0 STI", "M33 x 2.0 STI", "M36 x 2.0 STI", 
-        "M36 x 3.0 STI", "M39 x 2.0 STI"],
-    "heli_inch_coarse": ["#1-64 UNC STI", "#2-56 UNC STI", "#3-48 UNC STI", "#4-40 UNC STI", 
-        "#5-40 UNC STI", "#6-32 UNC STI", "#8-32 UNC STI", "#10-24 UNC STI", 
-        "#12-24 UNC STI", "1/4-20 UNC STI", "5/16-18 UNC STI", "3/8-16 UNC STI", 
-        "7/16-14 UNC STI", "1/2-13 UNC STI", "9/16-12 UNC STI", "5/8-11 UNC STI", 
-        "3/4-10 UNC STI", "7/8-9 UNC STI", "1-8 UNC STI", "1 1/8-7 UNC STI", 
-        "1 1/4-7 UNC STI", "1 3/8-6 UNC STI", "1 1/2-6 UNC STI"],
-    "heli_inch_fine": ["#2-64 UNF STI", "#3-56 UNF STI", "#4-48 UNF STI", "#5-44 UNF STI", 
-        "#6-40 UNF STI", "#8-36 UNF STI", "#10-32 UNF STI", "#12-28 UNF STI", 
-        "1/4-28 UNF STI", "5/16-24 UNF STI", "3/8-24 UNF STI", "7/16-20 UNF STI", 
-        "1/2-20 UNF STI", "9/16-18 UNF STI", "5/8-18 UNF STI", "3/4-16 UNF STI", 
-        "7/8-14 UNF STI", "1-12 UNF STI", "1 1/8-12 UNF STI", "1 1/4-12 UNF STI", 
-        "1 3/8-12 UNF STI", "1 1/2-12 UNF STI"],
-    "pt": ["PT 1/8-28", "PT 1/4-19", "PT 3/8-19", "PT 1/2-14", "PT 3/4-14", "PT 1-11", "PT 1 1/4-11", "PT 1 1/2-11", "PT 2-11", "PT 2 1/2-11", "PT 3-11", "PT 4-11"],
-    "npt": ["NPT 1/16-27", "NPT 1/8-27", "NPT 1/4-18", "NPT 3/8-18", 
-            "NPT 1/2-14", "NPT 3/4-14", "NPT 1-11.5", "NPT 1 1/4-11.5", 
-            "NPT 1 1/2-11.5", "NPT 2-11.5", "NPT 2 1/2-8", "NPT 3-8", "NPT 3 1/2-8", "NPT 4-8"],
-    "thd_coarse": ["M2 x 0.4", "M2.5 x 0.45", "M3 x 0.5", "M3.5 x 0.6", 
-                   "M4 x 0.7", "M4.5 x 0.75", "M5 x 0.8", "M6 x 1.0", 
-                   "M7 x 1.0", "M8 x 1.25", "M9 x 1.25", "M10 x 1.5", 
-                   "M11 x 1.5", "M12 x 1.75", "M14 x 2.0", "M16 x 2.0", 
-                   "M18 x 2.5", "M20 x 2.5", "M22 x 2.5", "M24 x 3.0", 
-                   "M27 x 3.0", "M30 x 3.5", "M33 x 3.5", "M36 x 4.0", 
-                   "M42 x 4.5", "M48 x 5.0"],
-    "thd_fine": ["M2 x 0.25", "M2.5 x 0.35", "M3 x 0.35", "M3.5 x 0.35", 
-                 "M4 x 0.5", "M4.5 x 0.5", "M5 x 0.5", "M6 x 0.75", 
-                 "M7 x 0.75", "M8 x 0.75", "M8 x 1.0", "M9 x 0.75", 
-                 "M9 x 1.0", "M10 x 0.75", "M10 x 1.0", "M10 x 1.25", 
-                 "M11 x 0.75", "M11 x 1.0", "M12 x 1.0", "M12 x 1.25", 
-                 "M12 x 1.5", "M14 x 1.0", "M14 x 1.25", "M14 x 1.5", 
-                 "M16 x 1.0", "M16 x 1.5", "M18 x 1.0", "M18 x 1.5", 
-                 "M18 x 2.0", "M20 x 1.0", "M20 x 1.5", "M20 x 2.0", 
-                 "M22 x 1.5", "M22 x 2.0", "M24 x 1.5", "M24 x 2.0", 
-                 "M27 x 1.5", "M27 x 2.0", "M30 x 1.5", "M30 x 2.0", 
-                 "M33 x 2.0", "M36 x 2.0", "M36 x 3.0", "M42 x 2.0", 
-                 "M42 x 3.0", "M48 x 2.0", "M48 x 3.0"],
+    "heli_metric_coarse": ["M3 STI", "M4 STI", "M5 STI", "M6 STI", "M8 STI", "M10 STI", "M12 STI"],
+    "heli_metric_fine": ["M8 x 1.0 STI", "M10 x 1.0 STI", "M10 x 1.25 STI", "M12 x 1.25 STI", "M12 x 1.5 STI"],
+    "heli_inch_coarse": ["4-40 UNC STI", "6-32 UNC STI", "8-32 UNC STI", "10-24 UNC STI", "1/4-20 UNC STI"],
+    "heli_inch_fine": ["4-48 UNF STI", "6-40 UNF STI", "8-36 UNF STI", "10-32 UNF STI", "1/4-28 UNF STI"],
+    "pt": ["1/16-28 PT", "1/8-28 PT", "1/4-19 PT", "3/8-19 PT", "1/2-14 PT", "3/4-14 PT"],
+    "npt": ["1/16-27 NPT", "1/8-27 NPT", "1/4-18 NPT", "3/8-18 NPT", "1/2-14 NPT", "3/4-14 NPT"],
+    "thd_coarse": ["M3 x 0.5", "M4 x 0.7", "M5 x 0.8", "M6 x 1.0", "M8 x 1.25", "M10 x 1.5", "M12 x 1.75"],
+    "thd_fine": ["M8 x 1.0", "M10 x 1.0", "M10 x 1.25", "M12 x 1.25", "M12 x 1.5", "M16 x 1.5"],
 }
 
 
@@ -105,8 +61,14 @@ class MainWindow(ctk.CTk):
         self.all_mains = []
         self.current_main = ""
         self.tap_mode = "coarse"
+        self.last_catalog_specs = None
 
         self.create_widgets()
+        if init_catalog:
+            try:
+                init_catalog()
+            except Exception:
+                pass
         self.load_initial_data()
 
     def create_widgets(self):
@@ -189,6 +151,11 @@ class MainWindow(ctk.CTk):
             widget = ctk.CTkEntry(row, width=220)
             widget.pack(side="left")
             self.entries[key] = {"row": row, "entry": widget}
+            if key == "tool_code":
+                ctk.CTkButton(
+                    row, text="검색", width=56, height=28,
+                    command=self.on_web_search_code,
+                ).pack(side="left", padx=(8, 0))
 
         # 나사 보통/가는 버튼 + 스크롤 목록
         self.tap_btn_row = ctk.CTkFrame(self.form_box, fg_color="transparent")
@@ -336,6 +303,10 @@ class MainWindow(ctk.CTk):
                 return "NPT탭"
             if sub == "TAP-PT":
                 return "PT탭"
+            if sub == "THD(UNC)":
+                return "UNC 쓰레드"
+            if sub == "THD(UNF)":
+                return "UNF 쓰레드"
             if sub == "THD":
                 return "쓰레드"
             if "TAP-H" in sub:
@@ -475,6 +446,9 @@ class MainWindow(ctk.CTk):
         show("total_length")
         show("quantity")
 
+        if self.last_catalog_specs:
+            self.apply_catalog_specs(self.last_catalog_specs, silent=True)
+
     def _filter_list(self, source_list, typed):
         typed = typed.strip().lower()
         if not typed:
@@ -501,6 +475,91 @@ class MainWindow(ctk.CTk):
         typed = self.combo_sub.get()
         filtered = self._filter_list(self.all_subs, typed)
         self.combo_sub.configure(values=filtered if filtered else self.all_subs)
+
+    def fmt_spec(self, value):
+        if value is None or value == "":
+            return ""
+        if isinstance(value, float):
+            if value == int(value):
+                return str(int(value))
+            return f"{value:g}"
+        return str(value)
+
+    def lookup_specs(self, code):
+        code = (code or "").strip()
+        if not code:
+            return None, "상품코드를 입력하세요."
+        if find_catalog_specs is None:
+            return None, (
+                "카탈로그 모듈이 없습니다.\n"
+                "database\\catalog.py 를 최신 파일로 덮어쓴 뒤\n"
+                "프로그램을 다시 실행하세요."
+            )
+        try:
+            specs = find_catalog_specs(code)
+        except Exception as e:
+            return None, f"카탈로그 조회 오류:\n{e}"
+        if specs:
+            return specs, None
+        n = 0
+        try:
+            n = catalog_count() if catalog_count else 0
+        except Exception:
+            n = 0
+        if n == 0:
+            return None, (
+                "카탈로그 DB가 비어 있습니다.\n"
+                "먼저 import_catalog.py 로 엑셀을 가져오세요."
+            )
+        return None, f"카탈로그에 없는 상품코드입니다.\n입력: {code}\n(등록 {n}건)"
+
+    def apply_catalog_specs(self, specs, silent=False):
+        """카탈로그에서 공구제원만 채운다. 대분류/소분류/상품명/제조사는 건드리지 않음."""
+        if not specs:
+            return
+        filled = []
+        for key in (
+            "diameter", "length", "effective_len", "corner_r", "angle",
+            "flute_count", "thread_spec", "shank_dia", "total_length",
+            "thickness", "neck_dia",
+        ):
+            if key not in self.entries or key not in specs:
+                continue
+            text = self.fmt_spec(specs[key])
+            if text == "":
+                continue
+            entry = self.entries[key]["entry"]
+            entry.delete(0, "end")
+            entry.insert(0, text)
+            filled.append(key)
+        self.last_catalog_specs = dict(specs)
+        if not silent:
+            code = specs.get("tool_code") or self.entries["tool_code"]["entry"].get().strip()
+            if filled:
+                self.status_label.configure(
+                    text=f"카탈로그 제원 적용: {code}",
+                    text_color="green",
+                )
+            else:
+                self.status_label.configure(
+                    text=f"카탈로그에 제원 없음: {code}",
+                    text_color="orange",
+                )
+
+    def on_web_search_code(self):
+        code = self.entries["tool_code"]["entry"].get().strip()
+        if not code:
+            messagebox.showwarning("입력 오류", "상품코드를 입력하세요.")
+            return
+        url = "https://www.google.com/search?q=" + quote_plus(code)
+        try:
+            webbrowser.open(url)
+            self.status_label.configure(
+                text=f"구글 검색: {code}  →  제원은 직접 입력",
+                text_color="green",
+            )
+        except Exception as e:
+            messagebox.showerror("검색 실패", str(e))
 
     def visible_value(self, key):
         if key not in self.entries:
@@ -557,7 +616,7 @@ class MainWindow(ctk.CTk):
                         messagebox.showwarning("입력 오류", f"{name}은(는) 숫자로 입력하세요.")
                         return
 
-            is_tap = sub_code.startswith("TAP") or sub_code == "THD"
+            is_tap = sub_code.startswith("TAP") or sub_code.startswith("THD")
             if not is_tap and not diameter:
                 messagebox.showwarning("입력 오류", "날지름을 입력하세요.")
                 return
@@ -678,9 +737,8 @@ class MainWindow(ctk.CTk):
             tool = cur.fetchone()
 
             if not tool:
-                messagebox.showinfo("알림", "동일한 상품코드의 공구가 없습니다.")
                 conn.close()
-                return
+                return False
 
             answer = messagebox.askyesno(
                 "재등록 확인",
@@ -693,7 +751,7 @@ class MainWindow(ctk.CTk):
             )
             if not answer:
                 conn.close()
-                return
+                return True
 
             qty_str = ctk.CTkInputDialog(
                 text="등록할 수량을 입력하세요:", title="재등록"
@@ -701,7 +759,7 @@ class MainWindow(ctk.CTk):
             if not qty_str or not qty_str.isdigit() or int(qty_str) <= 0:
                 messagebox.showwarning("입력 오류", "수량은 1 이상의 정수로 입력하세요.")
                 conn.close()
-                return
+                return True
             quantity = int(qty_str)
 
             is_grade_b = self.check_grade_b.get()
@@ -762,10 +820,12 @@ class MainWindow(ctk.CTk):
             messagebox.showinfo("재등록 완료", f"{quantity}개 재등록이 완료되었습니다.")
             self.status_label.configure(text=f"{quantity}개 재등록 완료", text_color="green")
             self.on_reset()
+            return True
 
         except Exception as e:
             messagebox.showerror("오류 발생", str(e))
             self.status_label.configure(text="재등록 실패", text_color="red")
+            return True
 
     def on_search_register(self):
         code = self.entry_search_code.get().strip()
@@ -774,7 +834,21 @@ class MainWindow(ctk.CTk):
             return
         self.entries["tool_code"]["entry"].delete(0, "end")
         self.entries["tool_code"]["entry"].insert(0, code)
-        self.on_reregister()
+
+        if self.on_reregister():
+            return
+
+        specs, err = self.lookup_specs(code)
+        if specs:
+            self.apply_catalog_specs(specs)
+            messagebox.showinfo(
+                "카탈로그 제원",
+                "등록된 공구는 없습니다.\n"
+                "카탈로그에서 공구제원만 채웠습니다.\n"
+                "대분류/소분류/제조사는 직접 선택한 뒤 등록하세요.",
+            )
+        else:
+            messagebox.showinfo("알림", err or "동일한 상품코드의 공구가 없습니다.")
 
     def on_show_list(self, grade=None):
         from ui.list_window import ListWindow
@@ -783,6 +857,7 @@ class MainWindow(ctk.CTk):
     def on_reset(self):
         for key in self.entries:
             self._clear_entry(key)
+        self.last_catalog_specs = None
         self.status_label.configure(text="초기화 완료", text_color="green")
 
     def fmt_num(self, value):
@@ -796,7 +871,7 @@ class MainWindow(ctk.CTk):
     def make_tool_name(self, sub_code, diameter, length, effective_len,
                        corner_r, angle, thread_spec,
                        flute_count="", thickness="", neck_dia=""):
-        if str(sub_code).startswith("TAP") or sub_code == "THD":
+        if str(sub_code).startswith("TAP") or str(sub_code).startswith("THD"):
             return thread_spec if thread_spec else "나사"
 
         if sub_code == "RM":
@@ -850,7 +925,7 @@ class MainWindow(ctk.CTk):
                       today, seq, is_grade_b, angle="", thickness="", neck_dia=""):
         tool_type = self.get_tool_type(sub_code)
 
-        if str(sub_code).startswith("TAP") or sub_code == "THD":
+        if str(sub_code).startswith("TAP") or str(sub_code).startswith("THD"):
             name = f"{thread_spec} {self.tap_type_label()}".strip()
         elif sub_code in ("RM", "CM", "TC", "DV"):
             name = self.make_tool_name(
@@ -887,6 +962,8 @@ class MainWindow(ctk.CTk):
             "CD": "초경 드릴", "MD": "마이크로 드릴", "FD": "플랫 드릴", "NC": "NC 드릴",
             "CM": "CM", "RM": "리머", "TC": "T커터", "DV": "더브테일", "SP": "특수제작공구",
             "THD": "쓰레드",
+            "THD(UNC)": "UNC 쓰레드",
+            "THD(UNF)": "UNF 쓰레드",
             "TAP": "탭", "TAP-H": "헬리탭",
             "TAP(UNF)": "UNF탭", "TAP(UNC)": "UNC탭",
             "TAP-H(UNF)": "헬리탭", "TAP-H(UNC)": "헬리탭",

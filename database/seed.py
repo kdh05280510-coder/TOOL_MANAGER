@@ -49,6 +49,7 @@ def seed_categories(cur):
         # TAP 미터
         ("TAP_M", "TAP(미터 탭)", "TAP", "탭"),
         ("TAP_M", "TAP(미터 탭)", "TAP-H", "헬리코일"),
+        ("TAP_M", "TAP(미터 탭)", "THD", "쓰레드"),
 
         # TAP 인치
         ("TAP_I", "TAP(인치 탭)", "TAP(UNC)", "UNC"),

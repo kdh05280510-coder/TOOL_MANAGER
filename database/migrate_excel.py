@@ -1,3 +1,16 @@
+"""
+이관만 할 때
+
+1. exe를 끈다
+2. VS Code 또는 검은 창에서 이관 스크립트 실행
+    예: python import_excel.py
+3. 같은 폴더의 DB가 갱신된다
+4. 이미 만들어 둔 공구등록_VER2.2.1.exe를 다시 연다
+
+exe와 DB를 같은 폴더에 두면 됩니다. 예: D:\tool_manager\dist\ 에 exe와 tool_manager.db가 함께 있는 형태입니다.
+코드가 안 바뀌었으면 python main.py로 실행해도 되고, 예전 exe를 그대로 써도 됩니다.
+"""
+
 import re
 import sys
 from pathlib import Path
