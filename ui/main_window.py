@@ -6,33 +6,86 @@ from database.db import get_connection
 
 # 보통나사 / 가는나사 (소분류 UNC·UNF가 아니라 버튼으로 구분)
 TAP_LISTS = {
-    "metric_coarse": [
-        "M2 x 0.4", "M2.5 x 0.45", "M3 x 0.5", "M4 x 0.7",
-        "M5 x 0.8", "M6 x 1.0", "M8 x 1.25", "M10 x 1.5",
-        "M12 x 1.75", "M14 x 2.0", "M16 x 2.0", "M18 x 2.5",
-        "M20 x 2.5", "M24 x 3.0",
+    "metric_coarse": ["M2 x 0.4", "M2.5 x 0.45", "M3 x 0.5",
+        "M3.5 x 0.6", "M4 x 0.7", "M4.5 x 0.75", "M5 x 0.8",
+        "M6 x 1.0", "M7 x 1.0", "M8 x 1.25", "M9 x 1.25", 
+        "M10 x 1.5", "M11 x 1.5", "M12 x 1.75", "M14 x 2.0", 
+        "M16 x 2.0", "M18 x 2.5", "M20 x 2.5", "M22 x 2.5", 
+        "M24 x 3.0", "M27 x 3.0", "M30 x 3.5", "M33 x 3.5", 
+        "M36 x 4.0", "M42 x 4.5", "M48 x 5.0",
     ],
-    "metric_fine": [
-        "M8 x 1.0", "M10 x 1.0", "M10 x 1.25", "M12 x 1.25",
-        "M12 x 1.5", "M14 x 1.5", "M16 x 1.5", "M18 x 1.5",
-        "M20 x 1.5", "M20 x 2.0", "M24 x 2.0",
+    "metric_fine": ["M2 x 0.25", "M2.5 x 0.35", "M3 x 0.35", 
+        "M3.5 x 0.35", "M4 x 0.5", "M4.5 x 0.5", "M5 x 0.5", 
+        "M6 x 0.75", "M7 x 0.75", "M8 x 0.75", "M8 x 1.0", 
+        "M9 x 0.75", "M9 x 1.0", "M10 x 0.75", "M10 x 1.0", 
+        "M10 x 1.25", "M11 x 0.75", "M11 x 1.0", "M12 x 1.0", 
+        "M12 x 1.25", "M12 x 1.5", "M14 x 1.0", "M14 x 1.25", 
+        "M14 x 1.5", "M16 x 1.0", "M16 x 1.5", "M18 x 1.0", 
+        "M18 x 1.5", "M18 x 2.0", "M20 x 1.0", "M20 x 1.5", 
+        "M20 x 2.0", "M22 x 1.5", "M22 x 2.0", "M24 x 1.5", 
+        "M24 x 2.0", "M27 x 1.5", "M27 x 2.0", "M30 x 1.5", 
+        "M30 x 2.0", "M33 x 2.0", "M36 x 2.0", "M36 x 3.0", 
+        "M42 x 2.0", "M42 x 3.0", "M48 x 2.0", "M48 x 3.0",
     ],
-    "inch_coarse": [
-        "4-40 UNC", "6-32 UNC", "8-32 UNC", "10-24 UNC",
-        "1/4-20 UNC", "5/16-18 UNC", "3/8-16 UNC", "7/16-14 UNC", "1/2-13 UNC",
+    "inch_coarse": ["#4-40 UNC", "#5-40 UNC", "#6-32 UNC", "#8-32 UNC", 
+        "#10-24 UNC", "#12-24 UNC", "1/4-20 UNC", "5/16-18 UNC", 
+        "3/8-16 UNC", "7/16-14 UNC", "1/2-13 UNC", "9/16-12 UNC", 
+        "5/8-11 UNC", "3/4-10 UNC", "7/8-9 UNC", "1-8 UNC", 
+        "1 1/8-7 UNC", "1 1/4-7 UNC", "1 3/8-6 UNC", "1 1/2-6 UNC", "1 3/4-5 UNC", "2-4 1/2 UNC"
     ],
-    "inch_fine": [
-        "4-48 UNF", "6-40 UNF", "8-36 UNF", "10-32 UNF",
-        "1/4-28 UNF", "5/16-24 UNF", "3/8-24 UNF", "7/16-20 UNF", "1/2-20 UNF",
+    "inch_fine": ["#4-48 UNF", "#5-44 UNF", "#6-40 UNF", "#8-36 UNF", 
+        "#10-32 UNF", "#12-28 UNF", "1/4-28 UNF", "5/16-24 UNF", 
+        "3/8-24 UNF", "7/16-20 UNF", "1/2-20 UNF", "9/16-18 UNF", 
+        "5/8-18 UNF", "3/4-16 UNF", "7/8-14 UNF", "1-12 UNF", 
+        "1 1/8-12 UNF", "1 1/4-12 UNF", "1 3/8-12 UNF", "1 1/2-12 UNF"
     ],
-    "heli_metric_coarse": ["M3 STI", "M4 STI", "M5 STI", "M6 STI", "M8 STI", "M10 STI", "M12 STI"],
-    "heli_metric_fine": ["M8 x 1.0 STI", "M10 x 1.0 STI", "M10 x 1.25 STI", "M12 x 1.25 STI", "M12 x 1.5 STI"],
-    "heli_inch_coarse": ["4-40 UNC STI", "6-32 UNC STI", "8-32 UNC STI", "10-24 UNC STI", "1/4-20 UNC STI"],
-    "heli_inch_fine": ["4-48 UNF STI", "6-40 UNF STI", "8-36 UNF STI", "10-32 UNF STI", "1/4-28 UNF STI"],
-    "pt": ["1/16-28 PT", "1/8-28 PT", "1/4-19 PT", "3/8-19 PT", "1/2-14 PT", "3/4-14 PT"],
-    "npt": ["1/16-27 NPT", "1/8-27 NPT", "1/4-18 NPT", "3/8-18 NPT", "1/2-14 NPT", "3/4-14 NPT"],
-    "thd_coarse": ["M3 x 0.5", "M4 x 0.7", "M5 x 0.8", "M6 x 1.0", "M8 x 1.25", "M10 x 1.5", "M12 x 1.75"],
-    "thd_fine": ["M8 x 1.0", "M10 x 1.0", "M10 x 1.25", "M12 x 1.25", "M12 x 1.5", "M16 x 1.5"],
+    "heli_metric_coarse": ["M2 x 0.4 STI", "M2.2 x 0.45 STI", "M2.5 x 0.45 STI", "M3 x 0.5 STI", 
+        "M3.5 x 0.6 STI", "M4 x 0.7 STI", "M5 x 0.8 STI", "M6 x 1.0 STI", 
+        "M7 x 1.0 STI", "M8 x 1.25 STI", "M9 x 1.25 STI", "M10 x 1.5 STI", 
+        "M11 x 1.5 STI", "M12 x 1.75 STI", "M14 x 2.0 STI", "M16 x 2.0 STI", 
+        "M18 x 2.5 STI", "M20 x 2.5 STI", "M22 x 2.5 STI", "M24 x 3.0 STI", 
+        "M27 x 3.0 STI", "M30 x 3.5 STI", "M33 x 3.5 STI", "M36 x 4.0 STI", "M39 x 4.0 STI"],
+    "heli_metric_fine": ["M8 x 1.0 STI", "M10 x 1.0 STI", "M10 x 1.25 STI", "M11 x 1.0 STI", 
+        "M11 x 1.25 STI", "M12 x 1.25 STI", "M12 x 1.5 STI", "M14 x 1.5 STI", 
+        "M16 x 1.5 STI", "M18 x 1.5 STI", "M18 x 2.0 STI", "M20 x 1.5 STI", 
+        "M20 x 2.0 STI", "M22 x 1.5 STI", "M22 x 2.0 STI", "M24 x 2.0 STI", 
+        "M27 x 2.0 STI", "M30 x 2.0 STI", "M33 x 2.0 STI", "M36 x 2.0 STI", 
+        "M36 x 3.0 STI", "M39 x 2.0 STI"],
+    "heli_inch_coarse": ["#1-64 UNC STI", "#2-56 UNC STI", "#3-48 UNC STI", "#4-40 UNC STI", 
+        "#5-40 UNC STI", "#6-32 UNC STI", "#8-32 UNC STI", "#10-24 UNC STI", 
+        "#12-24 UNC STI", "1/4-20 UNC STI", "5/16-18 UNC STI", "3/8-16 UNC STI", 
+        "7/16-14 UNC STI", "1/2-13 UNC STI", "9/16-12 UNC STI", "5/8-11 UNC STI", 
+        "3/4-10 UNC STI", "7/8-9 UNC STI", "1-8 UNC STI", "1 1/8-7 UNC STI", 
+        "1 1/4-7 UNC STI", "1 3/8-6 UNC STI", "1 1/2-6 UNC STI"],
+    "heli_inch_fine": ["#2-64 UNF STI", "#3-56 UNF STI", "#4-48 UNF STI", "#5-44 UNF STI", 
+        "#6-40 UNF STI", "#8-36 UNF STI", "#10-32 UNF STI", "#12-28 UNF STI", 
+        "1/4-28 UNF STI", "5/16-24 UNF STI", "3/8-24 UNF STI", "7/16-20 UNF STI", 
+        "1/2-20 UNF STI", "9/16-18 UNF STI", "5/8-18 UNF STI", "3/4-16 UNF STI", 
+        "7/8-14 UNF STI", "1-12 UNF STI", "1 1/8-12 UNF STI", "1 1/4-12 UNF STI", 
+        "1 3/8-12 UNF STI", "1 1/2-12 UNF STI"],
+    "pt": ["PT 1/8-28", "PT 1/4-19", "PT 3/8-19", "PT 1/2-14", "PT 3/4-14", "PT 1-11", "PT 1 1/4-11", "PT 1 1/2-11", "PT 2-11", "PT 2 1/2-11", "PT 3-11", "PT 4-11"],
+    "npt": ["NPT 1/16-27", "NPT 1/8-27", "NPT 1/4-18", "NPT 3/8-18", 
+            "NPT 1/2-14", "NPT 3/4-14", "NPT 1-11.5", "NPT 1 1/4-11.5", 
+            "NPT 1 1/2-11.5", "NPT 2-11.5", "NPT 2 1/2-8", "NPT 3-8", "NPT 3 1/2-8", "NPT 4-8"],
+    "thd_coarse": ["M2 x 0.4", "M2.5 x 0.45", "M3 x 0.5", "M3.5 x 0.6", 
+                   "M4 x 0.7", "M4.5 x 0.75", "M5 x 0.8", "M6 x 1.0", 
+                   "M7 x 1.0", "M8 x 1.25", "M9 x 1.25", "M10 x 1.5", 
+                   "M11 x 1.5", "M12 x 1.75", "M14 x 2.0", "M16 x 2.0", 
+                   "M18 x 2.5", "M20 x 2.5", "M22 x 2.5", "M24 x 3.0", 
+                   "M27 x 3.0", "M30 x 3.5", "M33 x 3.5", "M36 x 4.0", 
+                   "M42 x 4.5", "M48 x 5.0"],
+    "thd_fine": ["M2 x 0.25", "M2.5 x 0.35", "M3 x 0.35", "M3.5 x 0.35", 
+                 "M4 x 0.5", "M4.5 x 0.5", "M5 x 0.5", "M6 x 0.75", 
+                 "M7 x 0.75", "M8 x 0.75", "M8 x 1.0", "M9 x 0.75", 
+                 "M9 x 1.0", "M10 x 0.75", "M10 x 1.0", "M10 x 1.25", 
+                 "M11 x 0.75", "M11 x 1.0", "M12 x 1.0", "M12 x 1.25", 
+                 "M12 x 1.5", "M14 x 1.0", "M14 x 1.25", "M14 x 1.5", 
+                 "M16 x 1.0", "M16 x 1.5", "M18 x 1.0", "M18 x 1.5", 
+                 "M18 x 2.0", "M20 x 1.0", "M20 x 1.5", "M20 x 2.0", 
+                 "M22 x 1.5", "M22 x 2.0", "M24 x 1.5", "M24 x 2.0", 
+                 "M27 x 1.5", "M27 x 2.0", "M30 x 1.5", "M30 x 2.0", 
+                 "M33 x 2.0", "M36 x 2.0", "M36 x 3.0", "M42 x 2.0", 
+                 "M42 x 3.0", "M48 x 2.0", "M48 x 3.0"],
 }
 
 
@@ -252,6 +305,10 @@ class MainWindow(ctk.CTk):
             return TAP_LISTS["npt"]
         if sub == "TAP-PT":
             return TAP_LISTS["pt"]
+        if sub == "THD(UNC)":
+            return TAP_LISTS["inch_coarse"]
+        if sub == "THD(UNF)":
+            return TAP_LISTS["inch_fine"]
         if sub == "TAP(UNF)":
             return TAP_LISTS["inch_fine"]
         if sub == "TAP(UNC)":
@@ -358,7 +415,7 @@ class MainWindow(ctk.CTk):
         endmill_prefixes = ["EM", "BM", "BN", "RF", "LN"]
         is_endmill = any(choice.startswith(p) for p in endmill_prefixes)
         is_drill = choice in ["DR", "DR-SGESS", "DR-SGES", "CD", "NC", "FD", "MD"]
-        is_tap = str(choice).startswith("TAP") or choice == "THD"
+        is_tap = str(choice).startswith("TAP") or str(choice).startswith("THD")
         is_rm = choice == "RM"
         is_cm = choice == "CM"
         is_tc = choice == "TC"
