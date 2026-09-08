@@ -104,26 +104,67 @@ def seed_makers(cur):
 
 
 def seed_thread_specs(cur):
-    """나사 규격 일부 (필요시 계속 추가)"""
-    specs = [
-        # Metric
-        ("METRIC", "M3x0.5"), ("METRIC", "M4x0.7"), ("METRIC", "M5x0.8"),
-        ("METRIC", "M6x1.0"), ("METRIC", "M8x1.25"), ("METRIC", "M10x1.5"),
-        ("METRIC", "M12x1.75"), ("METRIC", "M16x2.0"), ("METRIC", "M20x2.5"),
+    specs = []
 
-        # UNC
-        ("UNC", "1/4-20 UNC"), ("UNC", "5/16-18 UNC"), ("UNC", "3/8-16 UNC"),
-        ("UNC", "1/2-13 UNC"), ("UNC", "#6-32 UNC"), ("UNC", "#8-32 UNC"),
-        ("UNC", "#10-24 UNC"),
+    def add(key, items):
+        for s in items:
+            specs.append((key, s))
 
-        # UNF
-        ("UNF", "1/4-28 UNF"), ("UNF", "5/16-24 UNF"), ("UNF", "3/8-24 UNF"),
-    ]
+    add("metric_coarse", [
+        "M2 x 0.4", "M2.5 x 0.45", "M3 x 0.5", "M4 x 0.7",
+        "M5 x 0.8", "M6 x 1.0", "M8 x 1.25", "M10 x 1.5",
+        "M12 x 1.75", "M14 x 2.0", "M16 x 2.0", "M18 x 2.5",
+        "M20 x 2.5", "M24 x 3.0",
+    ])
+    add("metric_fine", [
+        "M8 x 1.0", "M10 x 1.0", "M10 x 1.25", "M12 x 1.25",
+        "M12 x 1.5", "M14 x 1.5", "M16 x 1.5", "M18 x 1.5",
+        "M20 x 1.5", "M20 x 2.0", "M24 x 2.0",
+    ])
+    add("inch_coarse", [
+        "4-40 UNC", "6-32 UNC", "8-32 UNC", "10-24 UNC",
+        "1/4-20 UNC", "5/16-18 UNC", "3/8-16 UNC", "7/16-14 UNC", "1/2-13 UNC",
+    ])
+    add("inch_fine", [
+        "4-48 UNF", "6-40 UNF", "8-36 UNF", "10-32 UNF",
+        "1/4-28 UNF", "5/16-24 UNF", "3/8-24 UNF", "7/16-20 UNF", "1/2-20 UNF",
+    ])
+    add("heli_metric_coarse", [
+        "M3 STI", "M4 STI", "M5 STI", "M6 STI", "M8 STI", "M10 STI", "M12 STI",
+    ])
+    add("heli_metric_fine", [
+        "M8 x 1.0 STI", "M10 x 1.0 STI", "M10 x 1.25 STI",
+        "M12 x 1.25 STI", "M12 x 1.5 STI",
+    ])
+    add("heli_inch_coarse", [
+        "4-40 UNC STI", "6-32 UNC STI", "8-32 UNC STI",
+        "10-24 UNC STI", "1/4-20 UNC STI",
+    ])
+    add("heli_inch_fine", [
+        "4-48 UNF STI", "6-40 UNF STI", "8-36 UNF STI",
+        "10-32 UNF STI", "1/4-28 UNF STI",
+    ])
+    add("pt", [
+        "1/16-28 PT", "1/8-28 PT", "1/4-19 PT",
+        "3/8-19 PT", "1/2-14 PT", "3/4-14 PT",
+    ])
+    add("npt", [
+        "1/16-27 NPT", "1/8-27 NPT", "1/4-18 NPT",
+        "3/8-18 NPT", "1/2-14 NPT", "3/4-14 NPT",
+    ])
+    add("thd_coarse", [
+        "M3 x 0.5", "M4 x 0.7", "M5 x 0.8", "M6 x 1.0",
+        "M8 x 1.25", "M10 x 1.5", "M12 x 1.75",
+    ])
+    add("thd_fine", [
+        "M8 x 1.0", "M10 x 1.0", "M10 x 1.25",
+        "M12 x 1.25", "M12 x 1.5", "M16 x 1.5",
+    ])
 
-    cur.executemany("""
-        INSERT OR IGNORE INTO thread_specs (standard, spec)
-        VALUES (?, ?)
-    """, specs)
+    cur.executemany(
+        "INSERT OR IGNORE INTO thread_specs (standard, spec) VALUES (?, ?)",
+        specs,
+    )
     print(f"나사규격 {len(specs)}개 등록 완료")
 
 

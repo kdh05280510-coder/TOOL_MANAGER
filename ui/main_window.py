@@ -1,48 +1,9 @@
 import customtkinter as ctk
 from datetime import datetime
 import tkinter.messagebox as messagebox
-import webbrowser
 from urllib.parse import quote_plus
-from database.db import get_connection
-
-try:
-    from database.catalog import find_catalog_specs, catalog_count, init_catalog
-except Exception:
-    find_catalog_specs = None
-    catalog_count = None
-    init_catalog = None
-
-
-# 보통나사 / 가는나사 (소분류 UNC·UNF가 아니라 버튼으로 구분)
-TAP_LISTS = {
-    "metric_coarse": [
-        "M2 x 0.4", "M2.5 x 0.45", "M3 x 0.5", "M4 x 0.7",
-        "M5 x 0.8", "M6 x 1.0", "M8 x 1.25", "M10 x 1.5",
-        "M12 x 1.75", "M14 x 2.0", "M16 x 2.0", "M18 x 2.5",
-        "M20 x 2.5", "M24 x 3.0",
-    ],
-    "metric_fine": [
-        "M8 x 1.0", "M10 x 1.0", "M10 x 1.25", "M12 x 1.25",
-        "M12 x 1.5", "M14 x 1.5", "M16 x 1.5", "M18 x 1.5",
-        "M20 x 1.5", "M20 x 2.0", "M24 x 2.0",
-    ],
-    "inch_coarse": [
-        "4-40 UNC", "6-32 UNC", "8-32 UNC", "10-24 UNC",
-        "1/4-20 UNC", "5/16-18 UNC", "3/8-16 UNC", "7/16-14 UNC", "1/2-13 UNC",
-    ],
-    "inch_fine": [
-        "4-48 UNF", "6-40 UNF", "8-36 UNF", "10-32 UNF",
-        "1/4-28 UNF", "5/16-24 UNF", "3/8-24 UNF", "7/16-20 UNF", "1/2-20 UNF",
-    ],
-    "heli_metric_coarse": ["M3 STI", "M4 STI", "M5 STI", "M6 STI", "M8 STI", "M10 STI", "M12 STI"],
-    "heli_metric_fine": ["M8 x 1.0 STI", "M10 x 1.0 STI", "M10 x 1.25 STI", "M12 x 1.25 STI", "M12 x 1.5 STI"],
-    "heli_inch_coarse": ["4-40 UNC STI", "6-32 UNC STI", "8-32 UNC STI", "10-24 UNC STI", "1/4-20 UNC STI"],
-    "heli_inch_fine": ["4-48 UNF STI", "6-40 UNF STI", "8-36 UNF STI", "10-32 UNF STI", "1/4-28 UNF STI"],
-    "pt": ["1/16-28 PT", "1/8-28 PT", "1/4-19 PT", "3/8-19 PT", "1/2-14 PT", "3/4-14 PT"],
-    "npt": ["1/16-27 NPT", "1/8-27 NPT", "1/4-18 NPT", "3/8-18 NPT", "1/2-14 NPT", "3/4-14 NPT"],
-    "thd_coarse": ["M3 x 0.5", "M4 x 0.7", "M5 x 0.8", "M6 x 1.0", "M8 x 1.25", "M10 x 1.5", "M12 x 1.75"],
-    "thd_fine": ["M8 x 1.0", "M10 x 1.0", "M10 x 1.25", "M12 x 1.25", "M12 x 1.5", "M16 x 1.5"],
-}
+from pathlib import Path
+from database.db import get_connection, get_base_dir
 
 
 class MainWindow(ctk.CTk):
@@ -61,15 +22,12 @@ class MainWindow(ctk.CTk):
         self.all_mains = []
         self.current_main = ""
         self.tap_mode = "coarse"
-        self.last_catalog_specs = None
+        self.list_win = None
+        self.search_driver = None
 
         self.create_widgets()
-        if init_catalog:
-            try:
-                init_catalog()
-            except Exception:
-                pass
         self.load_initial_data()
+        self.protocol("WM_DELETE_WINDOW", self.on_app_close)
 
     def create_widgets(self):
         title = ctk.CTkLabel(
@@ -140,6 +98,7 @@ class MainWindow(ctk.CTk):
             ("thickness", "날두께 (T)"),
             ("neck_dia", "목직경 (d)"),
             ("thread_spec", "나사규격"),
+            ("etc_note", "기타"),
             ("shank_dia", "생크지름"),
             ("total_length", "전체길이"),
             ("quantity", "수량"),
@@ -153,11 +112,15 @@ class MainWindow(ctk.CTk):
             self.entries[key] = {"row": row, "entry": widget}
             if key == "tool_code":
                 ctk.CTkButton(
-                    row, text="검색", width=56, height=28,
-                    command=self.on_web_search_code,
+                    row, text="AI검색", width=60, height=28,
+                    command=lambda: self.on_web_search_code("ai"),
                 ).pack(side="left", padx=(8, 0))
+                ctk.CTkButton(
+                    row, text="제미나이", width=64, height=28,
+                    fg_color="#8E44AD", hover_color="#6C3483",
+                    command=lambda: self.on_web_search_code("gemini"),
+                ).pack(side="left", padx=(4, 0))
 
-        # 나사 보통/가는 버튼 + 스크롤 목록
         self.tap_btn_row = ctk.CTkFrame(self.form_box, fg_color="transparent")
         self.btn_coarse = ctk.CTkButton(
             self.tap_btn_row, text="보통나사", width=100, height=28,
@@ -265,58 +228,79 @@ class MainWindow(ctk.CTk):
         main = self.current_main or self.combo_main.get() or ""
         return main.startswith("TAP-M") or "미터" in main
 
+    def is_sp_main(self):
+        main = self.current_main or self.combo_main.get() or ""
+        return main.startswith("SP") or "특수" in main
+
+    def load_thread_specs(self, *keys):
+        conn = get_connection()
+        cur = conn.cursor()
+        out = []
+        seen = set()
+        for key in keys:
+            cur.execute(
+                "SELECT spec FROM thread_specs WHERE standard = ? ORDER BY id",
+                (key,),
+            )
+            for row in cur.fetchall():
+                spec = row["spec"]
+                if spec and spec not in seen:
+                    seen.add(spec)
+                    out.append(spec)
+        conn.close()
+        return out
+
     def current_tap_specs(self):
         sub = self.combo_sub.get().strip()
         fine = self.tap_mode == "fine"
         if sub == "TAP-NPT":
-            return TAP_LISTS["npt"]
+            return self.load_thread_specs("npt")
         if sub == "TAP-PT":
-            return TAP_LISTS["pt"]
-        if sub == "THD(UNC)":
-            return TAP_LISTS["inch_coarse"]
-        if sub == "THD(UNF)":
-            return TAP_LISTS["inch_fine"]
-        if sub == "TAP(UNF)":
-            return TAP_LISTS["inch_fine"]
-        if sub == "TAP(UNC)":
-            return TAP_LISTS["inch_coarse"]
+            return self.load_thread_specs("pt")
+        if sub in ("THD(UNC)", "TAP(UNC)"):
+            return self.load_thread_specs("inch_coarse")
+        if sub in ("THD(UNF)", "TAP(UNF)"):
+            return self.load_thread_specs("inch_fine")
         if sub == "TAP-H(UNF)":
-            return TAP_LISTS["heli_inch_fine"]
+            return self.load_thread_specs("heli_inch_fine")
         if sub == "TAP-H(UNC)":
-            return TAP_LISTS["heli_inch_coarse"]
+            return self.load_thread_specs("heli_inch_coarse")
         if sub == "THD" and self.is_inch_tap():
-            return TAP_LISTS["inch_fine"] + TAP_LISTS["inch_coarse"]
+            return self.load_thread_specs("inch_fine", "inch_coarse")
         if sub == "THD":
-            return TAP_LISTS["thd_fine" if fine else "thd_coarse"]
+            return self.load_thread_specs("thd_fine" if fine else "thd_coarse")
         if sub == "TAP-H":
-            return TAP_LISTS["heli_metric_fine" if fine else "heli_metric_coarse"]
+            return self.load_thread_specs(
+                "heli_metric_fine" if fine else "heli_metric_coarse"
+            )
         if self.is_inch_tap():
-            return TAP_LISTS["inch_coarse"]
-        return TAP_LISTS["metric_fine" if fine else "metric_coarse"]
+            return self.load_thread_specs("inch_coarse")
+        return self.load_thread_specs("metric_fine" if fine else "metric_coarse")
 
     def tap_type_label(self):
         sub = self.combo_sub.get().strip()
-        fine = self.tap_mode == "fine"
-        pitch = "가는나사" if fine else "보통나사"
-        if self.is_inch_tap():
-            if sub == "TAP-NPT":
-                return "NPT탭"
-            if sub == "TAP-PT":
-                return "PT탭"
-            if sub == "THD(UNC)":
-                return "UNC 쓰레드"
-            if sub == "THD(UNF)":
-                return "UNF 쓰레드"
-            if sub == "THD":
-                return "쓰레드"
-            if "TAP-H" in sub:
-                return "헬리탭"
-            return "인치탭"
-        if sub == "THD":
-            return f"{pitch} 쓰레드"
-        if sub == "TAP-H":
-            return f"{pitch} 헬리탭"
-        return f"{pitch} 탭"
+        pitch = "fine" if self.tap_mode == "fine" else "coarse"
+        conn = get_connection()
+        cur = conn.cursor()
+        row = None
+        try:
+            cur.execute(
+                "SELECT label FROM tap_labels WHERE sub_code = ? AND pitch = ?",
+                (sub, pitch),
+            )
+            row = cur.fetchone()
+            if row is None:
+                cur.execute(
+                    "SELECT label FROM tap_labels WHERE sub_code = ? AND pitch = 'any'",
+                    (sub,),
+                )
+                row = cur.fetchone()
+        except Exception:
+            row = None
+        conn.close()
+        if row and row["label"]:
+            return row["label"]
+        return self.get_tool_type(sub, self.current_main) or "탭"
 
     def render_tap_specs(self):
         for w in self.tap_list.winfo_children():
@@ -386,7 +370,8 @@ class MainWindow(ctk.CTk):
         endmill_prefixes = ["EM", "BM", "BN", "RF", "LN"]
         is_endmill = any(choice.startswith(p) for p in endmill_prefixes)
         is_drill = choice in ["DR", "DR-SGESS", "DR-SGES", "CD", "NC", "FD", "MD"]
-        is_tap = str(choice).startswith("TAP") or str(choice).startswith("THD")
+        is_thd = str(choice).upper().startswith("THD")
+        is_tap = str(choice).startswith("TAP") or is_thd
         is_rm = choice == "RM"
         is_cm = choice == "CM"
         is_tc = choice == "TC"
@@ -395,6 +380,27 @@ class MainWindow(ctk.CTk):
         def show(key):
             if key in self.entries:
                 self.entries[key]["row"].pack(fill="x", pady=4, side="top", anchor="w")
+
+        if self.is_sp_main():
+            for key in self.entries:
+                show(key)
+            if is_tap:
+                if self.combo_sub.get() in ("TAP", "TAP-H", "THD"):
+                    self.tap_btn_row.pack(
+                        fill="x", pady=(0, 4), side="top",
+                        after=self.entries["thread_spec"]["row"]
+                    )
+                    self.tap_list_row.pack(
+                        fill="x", pady=(0, 4), side="top", after=self.tap_btn_row
+                    )
+                    self.set_tap_mode("coarse")
+                else:
+                    self.tap_list_row.pack(
+                        fill="x", pady=(0, 4), side="top",
+                        after=self.entries["thread_spec"]["row"]
+                    )
+                    self.render_tap_specs()
+            return
 
         show("tool_code")
 
@@ -424,6 +430,10 @@ class MainWindow(ctk.CTk):
             show("diameter")
             show("angle")
         elif is_tap:
+            if is_thd:
+                show("diameter")
+                show("length")
+                show("effective_len")
             show("thread_spec")
             if self.is_metric_tap() and self.combo_sub.get() in ("TAP", "TAP-H", "THD"):
                 self.tap_btn_row.pack(
@@ -445,9 +455,6 @@ class MainWindow(ctk.CTk):
         show("shank_dia")
         show("total_length")
         show("quantity")
-
-        if self.last_catalog_specs:
-            self.apply_catalog_specs(self.last_catalog_specs, silent=True)
 
     def _filter_list(self, source_list, typed):
         typed = typed.strip().lower()
@@ -476,90 +483,127 @@ class MainWindow(ctk.CTk):
         filtered = self._filter_list(self.all_subs, typed)
         self.combo_sub.configure(values=filtered if filtered else self.all_subs)
 
-    def fmt_spec(self, value):
-        if value is None or value == "":
-            return ""
-        if isinstance(value, float):
-            if value == int(value):
-                return str(int(value))
-            return f"{value:g}"
-        return str(value)
+    def ensure_search_driver(self):
+        from selenium import webdriver
+        from selenium.webdriver.chrome.options import Options
 
-    def lookup_specs(self, code):
-        code = (code or "").strip()
-        if not code:
-            return None, "상품코드를 입력하세요."
-        if find_catalog_specs is None:
-            return None, (
-                "카탈로그 모듈이 없습니다.\n"
-                "database\\catalog.py 를 최신 파일로 덮어쓴 뒤\n"
-                "프로그램을 다시 실행하세요."
-            )
+        if self.search_driver is not None:
+            try:
+                _ = self.search_driver.current_url
+                return
+            except Exception:
+                try:
+                    self.search_driver.quit()
+                except Exception:
+                    pass
+                self.search_driver = None
+
+        options = Options()
+        options.add_argument("--start-maximized")
+        options.add_experimental_option("excludeSwitches", ["enable-logging"])
+        profile_dir = get_base_dir() / "data" / "chrome_search_profile"
+        profile_dir.mkdir(parents=True, exist_ok=True)
+        options.add_argument(f"--user-data-dir={profile_dir}")
+        self.search_driver = webdriver.Chrome(options=options)
+
+    def submit_gemini_query(self, query):
+        import time
+        from selenium.webdriver.common.by import By
+        from selenium.webdriver.common.keys import Keys
+        from selenium.webdriver.support.ui import WebDriverWait
+        from selenium.webdriver.support import expected_conditions as EC
+
+        driver = self.search_driver
+        current = ""
         try:
-            specs = find_catalog_specs(code)
-        except Exception as e:
-            return None, f"카탈로그 조회 오류:\n{e}"
-        if specs:
-            return specs, None
-        n = 0
-        try:
-            n = catalog_count() if catalog_count else 0
+            current = driver.current_url or ""
         except Exception:
-            n = 0
-        if n == 0:
-            return None, (
-                "카탈로그 DB가 비어 있습니다.\n"
-                "먼저 import_catalog.py 로 엑셀을 가져오세요."
+            current = ""
+        if "gemini.google.com" not in current:
+            driver.get("https://gemini.google.com/app")
+
+        wait = WebDriverWait(driver, 20)
+        selectors = [
+            "div.ql-editor[contenteditable='true']",
+            "div[contenteditable='true'][role='textbox']",
+            "div[contenteditable='true']",
+            "rich-textarea textarea",
+            "textarea",
+        ]
+        box = None
+        last_err = None
+        for sel in selectors:
+            try:
+                box = wait.until(EC.element_to_be_clickable((By.CSS_SELECTOR, sel)))
+                if box:
+                    break
+            except Exception as e:
+                last_err = e
+                box = None
+        if box is None:
+            raise RuntimeError(
+                "제미나이 입력칸을 찾지 못했습니다.\n"
+                "검색 창에서 구글 로그인 후 다시 [제미나이]를 누르세요."
             )
-        return None, f"카탈로그에 없는 상품코드입니다.\n입력: {code}\n(등록 {n}건)"
 
-    def apply_catalog_specs(self, specs, silent=False):
-        """카탈로그에서 공구제원만 채운다. 대분류/소분류/상품명/제조사는 건드리지 않음."""
-        if not specs:
-            return
-        filled = []
-        for key in (
-            "diameter", "length", "effective_len", "corner_r", "angle",
-            "flute_count", "thread_spec", "shank_dia", "total_length",
-            "thickness", "neck_dia",
+        try:
+            driver.execute_script("arguments[0].click();", box)
+        except Exception:
+            box.click()
+        time.sleep(0.25)
+        try:
+            box.send_keys(Keys.CONTROL, "a")
+            box.send_keys(Keys.BACKSPACE)
+        except Exception:
+            pass
+        box.send_keys(query)
+        time.sleep(0.2)
+        box.send_keys(Keys.ENTER)
+        time.sleep(0.3)
+        for sel in (
+            "button[aria-label='전송']",
+            "button[aria-label='보내기']",
+            "button[aria-label='Send']",
+            "button.send-button",
         ):
-            if key not in self.entries or key not in specs:
-                continue
-            text = self.fmt_spec(specs[key])
-            if text == "":
-                continue
-            entry = self.entries[key]["entry"]
-            entry.delete(0, "end")
-            entry.insert(0, text)
-            filled.append(key)
-        self.last_catalog_specs = dict(specs)
-        if not silent:
-            code = specs.get("tool_code") or self.entries["tool_code"]["entry"].get().strip()
-            if filled:
-                self.status_label.configure(
-                    text=f"카탈로그 제원 적용: {code}",
-                    text_color="green",
-                )
-            else:
-                self.status_label.configure(
-                    text=f"카탈로그에 제원 없음: {code}",
-                    text_color="orange",
-                )
+            try:
+                btns = driver.find_elements(By.CSS_SELECTOR, sel)
+                if btns and btns[0].is_enabled():
+                    btns[0].click()
+                    break
+            except Exception:
+                pass
 
-    def on_web_search_code(self):
+    def on_web_search_code(self, target="ai"):
         code = self.entries["tool_code"]["entry"].get().strip()
         if not code:
             messagebox.showwarning("입력 오류", "상품코드를 입력하세요.")
             return
-        url = "https://www.google.com/search?q=" + quote_plus(code)
+        q = f"{code} 공구 제원 날지름 날장 생크지름 전체길이"
         try:
-            webbrowser.open(url)
+            self.ensure_search_driver()
+            if target == "gemini":
+                self.submit_gemini_query(q)
+                label = "제미나이"
+            else:
+                url = "https://www.google.com/search?udm=50&hl=ko&q=" + quote_plus(q)
+                self.search_driver.get(url)
+                label = "구글 AI모드"
             self.status_label.configure(
-                text=f"구글 검색: {code}  →  제원은 직접 입력",
+                text=f"{label}: {code}  →  같은 창에서 검색",
                 text_color="green",
             )
         except Exception as e:
             messagebox.showerror("검색 실패", str(e))
+
+    def on_app_close(self):
+        if self.search_driver is not None:
+            try:
+                self.search_driver.quit()
+            except Exception:
+                pass
+            self.search_driver = None
+        self.destroy()
 
     def visible_value(self, key):
         if key not in self.entries:
@@ -584,6 +628,7 @@ class MainWindow(ctk.CTk):
             thickness = self.visible_value("thickness")
             neck_dia = self.visible_value("neck_dia")
             thread_spec = self.visible_value("thread_spec")
+            etc_note = self.visible_value("etc_note")
             shank_dia = self.visible_value("shank_dia")
             total_length = self.visible_value("total_length")
             tool_code = self.entries["tool_code"]["entry"].get().strip()
@@ -617,12 +662,14 @@ class MainWindow(ctk.CTk):
                         return
 
             is_tap = sub_code.startswith("TAP") or sub_code.startswith("THD")
-            if not is_tap and not diameter:
-                messagebox.showwarning("입력 오류", "날지름을 입력하세요.")
-                return
-            if is_tap and not thread_spec:
-                messagebox.showwarning("입력 오류", "나사규격을 선택하세요.")
-                return
+            is_sp = self.is_sp_main()
+            if not is_sp:
+                if not is_tap and not diameter:
+                    messagebox.showwarning("입력 오류", "날지름을 입력하세요.")
+                    return
+                if is_tap and not thread_spec:
+                    messagebox.showwarning("입력 오류", "나사규격을 선택하세요.")
+                    return
 
             conn = get_connection()
             cur = conn.cursor()
@@ -644,18 +691,21 @@ class MainWindow(ctk.CTk):
 
             tool_name = self.make_tool_name(
                 sub_code, diameter, length, effective_len, corner_r, angle,
-                thread_spec, flute_count, thickness, neck_dia
+                thread_spec, flute_count, thickness, neck_dia, etc_note
             )
 
             def to_f(v):
-                return float(f"{float(v):.1f}") if v else None
+                if not v:
+                    return None
+                return float(v)
 
             cur.execute("""
                 INSERT INTO tools (
                     category_id, maker_id, tool_code, tool_name,
                     diameter, length, effective_len, corner_r, angle,
-                    flute_count, thread_spec, shank_dia, total_length, tool_type
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    flute_count, thread_spec, shank_dia, total_length,
+                    tool_type, remark
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (
                 category_id, maker_id,
                 tool_code if tool_code else None,
@@ -665,7 +715,8 @@ class MainWindow(ctk.CTk):
                 int(float(flute_count)) if flute_count else None,
                 thread_spec if thread_spec else None,
                 to_f(shank_dia), to_f(total_length),
-                self.get_tool_type(sub_code),
+                self.get_tool_type(sub_code, main_name),
+                etc_note if etc_note else None,
             ))
             tool_id = cur.lastrowid
 
@@ -690,7 +741,8 @@ class MainWindow(ctk.CTk):
                 barcode = f"{base_code}-{today}-{seq}"
                 sub_name = self.make_sub_name(
                     sub_code, diameter, length, flute_count, thread_spec,
-                    today, seq, is_grade_b, angle, thickness, neck_dia
+                    today, seq, is_grade_b, angle, thickness, neck_dia,
+                    effective_len, corner_r, etc_note
                 )
                 cur.execute("""
                     INSERT INTO inventory (
@@ -838,41 +890,108 @@ class MainWindow(ctk.CTk):
         if self.on_reregister():
             return
 
-        specs, err = self.lookup_specs(code)
-        if specs:
-            self.apply_catalog_specs(specs)
-            messagebox.showinfo(
-                "카탈로그 제원",
-                "등록된 공구는 없습니다.\n"
-                "카탈로그에서 공구제원만 채웠습니다.\n"
-                "대분류/소분류/제조사는 직접 선택한 뒤 등록하세요.",
-            )
-        else:
-            messagebox.showinfo("알림", err or "동일한 상품코드의 공구가 없습니다.")
+        messagebox.showinfo(
+            "알림",
+            "동일한 상품코드의 등록 공구가 없습니다.\n제원은 직접 입력하세요.",
+        )
 
     def on_show_list(self, grade=None):
         from ui.list_window import ListWindow
-        ListWindow(self, grade=grade)
+        win = self.list_win
+        if win is not None:
+            try:
+                if win.winfo_exists():
+                    win.apply_grade(grade)
+                    win.deiconify()
+                    win.bring_to_front()
+                    return
+            except Exception:
+                self.list_win = None
+        win = ListWindow(self, grade=grade)
+        self.list_win = win
+        win.protocol("WM_DELETE_WINDOW", self.on_list_close)
+
+    def on_list_close(self):
+        if self.list_win is not None:
+            try:
+                self.list_win.destroy()
+            except Exception:
+                pass
+        self.list_win = None
 
     def on_reset(self):
         for key in self.entries:
             self._clear_entry(key)
-        self.last_catalog_specs = None
         self.status_label.configure(text="초기화 완료", text_color="green")
 
     def fmt_num(self, value):
         if value is None or value == "":
             return ""
         try:
-            return f"{float(value):.1f}"
+            s = str(value).strip()
+
+        # 소수점이 없는 숫자라면 .0 추가
+            if "." not in s:
+                return s + ".0"
+
+        # 소수점이 있으면 입력값 그대로 반환
+            return s
+
         except (ValueError, TypeError):
             return str(value)
 
+    def collect_filled_name_parts(self, sub_code, diameter, length, effective_len,
+                                  corner_r, angle, thread_spec,
+                                  flute_count="", thickness="", neck_dia="",
+                                  etc_note="", main_name=None):
+        parts = []
+        if thread_spec:
+            parts.append(str(thread_spec).strip())
+        if diameter:
+            parts.append(f"D{self.fmt_num(diameter)}")
+        if length:
+            parts.append(f"L{self.fmt_num(length)}")
+        if effective_len:
+            parts.append(f"H{self.fmt_num(effective_len)}")
+        if corner_r:
+            parts.append(f"R{self.fmt_num(corner_r)}")
+        if angle:
+            parts.append(f"{self.fmt_num(angle)}°")
+        if thickness:
+            parts.append(f"T{self.fmt_num(thickness)}")
+        if neck_dia:
+            parts.append(f"d{self.fmt_num(neck_dia)}")
+        if flute_count:
+            parts.append(f"{flute_count}날")
+        if etc_note:
+            parts.append(str(etc_note).strip())
+        tool_type = self.get_tool_type(sub_code, main_name or self.current_main)
+        if tool_type and tool_type not in parts:
+            parts.append(tool_type)
+        return parts
+
     def make_tool_name(self, sub_code, diameter, length, effective_len,
                        corner_r, angle, thread_spec,
-                       flute_count="", thickness="", neck_dia=""):
+                       flute_count="", thickness="", neck_dia="", etc_note=""):
+        if self.is_sp_main():
+            parts = self.collect_filled_name_parts(
+                sub_code, diameter, length, effective_len, corner_r, angle,
+                thread_spec, flute_count, thickness, neck_dia, etc_note
+            )
+            return " ".join(parts) if parts else "특수공구"
+
         if str(sub_code).startswith("TAP") or str(sub_code).startswith("THD"):
-            return thread_spec if thread_spec else "나사"
+            parts = []
+            if thread_spec:
+                parts.append(thread_spec)
+            if str(sub_code).startswith("THD"):
+                if diameter:
+                    parts.append(f"D{self.fmt_num(diameter)}")
+                if length:
+                    parts.append(f"L{self.fmt_num(length)}")
+                if effective_len:
+                    parts.append(f"H{self.fmt_num(effective_len)}")
+            return " ".join(parts) if parts else "나사"
 
         if sub_code == "RM":
             parts = []
@@ -922,11 +1041,26 @@ class MainWindow(ctk.CTk):
         return " ".join(parts) if parts else "공구"
 
     def make_sub_name(self, sub_code, diameter, length, flute_count, thread_spec,
-                      today, seq, is_grade_b, angle="", thickness="", neck_dia=""):
+                      today, seq, is_grade_b, angle="", thickness="", neck_dia="",
+                      effective_len="", corner_r="", etc_note=""):
+        if self.is_sp_main():
+            parts = self.collect_filled_name_parts(
+                sub_code, diameter, length, effective_len, corner_r, angle,
+                thread_spec, flute_count, thickness, neck_dia, etc_note
+            )
+            name = " ".join(parts) if parts else "특수공구"
+            return f"{name} {today}-{seq}".strip()
+
         tool_type = self.get_tool_type(sub_code)
 
         if str(sub_code).startswith("TAP") or str(sub_code).startswith("THD"):
-            name = f"{thread_spec} {self.tap_type_label()}".strip()
+            parts = [str(thread_spec or "").strip(), self.tap_type_label()]
+            if str(sub_code).startswith("THD"):
+                if diameter is not None and str(diameter).strip() != "":
+                    parts.append(f"D{self.fmt_num(diameter)}")
+                if length is not None and str(length).strip() != "":
+                    parts.append(f"L{self.fmt_num(length)}")
+            name = " ".join(p for p in parts if p).strip()
         elif sub_code in ("RM", "CM", "TC", "DV"):
             name = self.make_tool_name(
                 sub_code, diameter, length, "", "", angle, "",
@@ -947,30 +1081,36 @@ class MainWindow(ctk.CTk):
         name = f"{name} {today}-{seq}".strip()
         return name.strip()
 
-    def get_tool_type(self, sub_code):
-        mapping = {
-            "EM(SUS)": "스퀘어", "EM(ALU)": "스퀘어", "EM(STEEL)": "스퀘어",
-            "EM-R(SUS)": "리브 스퀘어", "EM-R(ALU)": "리브 스퀘어", "EM-R(STEEL)": "리브 스퀘어",
-            "BM(SUS)": "볼", "BM(ALU)": "볼", "BM(STEEL)": "볼",
-            "BM-R(SUS)": "리브 볼", "BM-R(ALU)": "리브 볼", "BM-R(STEEL)": "리브 볼",
-            "BN(SUS)": "코너R", "BN(ALU)": "코너R", "BN(STEEL)": "코너R",
-            "BN-R(SUS)": "리브 코너R", "BN-R(ALU)": "리브 코너R", "BN-R(STEEL)": "리브 코너R",
-            "RF(SUS)": "라핑", "RF(ALU)": "라핑", "RF(STEEL)": "라핑",
-            "RF-R(SUS)": "리브 라핑", "RF-R(ALU)": "리브 라핑", "RF-R(STEEL)": "리브 라핑",
-            "LN(SUS)": "롱넥", "LN(ALU)": "롱넥", "LN(STEEL)": "롱넥",
-            "DR": "드릴", "DR-SGESS": "드릴", "DR-SGES": "드릴",
-            "CD": "초경 드릴", "MD": "마이크로 드릴", "FD": "플랫 드릴", "NC": "NC 드릴",
-            "CM": "CM", "RM": "리머", "TC": "T커터", "DV": "더브테일", "SP": "특수제작공구",
-            "THD": "쓰레드",
-            "THD(UNC)": "UNC 쓰레드",
-            "THD(UNF)": "UNF 쓰레드",
-            "TAP": "탭", "TAP-H": "헬리탭",
-            "TAP(UNF)": "UNF탭", "TAP(UNC)": "UNC탭",
-            "TAP-H(UNF)": "헬리탭", "TAP-H(UNC)": "헬리탭",
-            "TAP-NPT": "NPT탭", "TAP-PT": "PT탭",
-            "TAP-M": "탭", "TAP-MF": "가는나사 탭",
-        }
-        return mapping.get(sub_code, "")
+    def get_tool_type(self, sub_code, main_name=None):
+        sub_code = (sub_code or "").strip()
+        if not sub_code:
+            return ""
+        conn = get_connection()
+        cur = conn.cursor()
+        row = None
+        if main_name:
+            cur.execute(
+                """
+                SELECT type_name, sub_name FROM categories
+                WHERE main_name = ? AND sub_code = ?
+                """,
+                (main_name, sub_code),
+            )
+            row = cur.fetchone()
+        if row is None:
+            cur.execute(
+                """
+                SELECT type_name, sub_name FROM categories
+                WHERE sub_code = ?
+                ORDER BY id LIMIT 1
+                """,
+                (sub_code,),
+            )
+            row = cur.fetchone()
+        conn.close()
+        if not row:
+            return ""
+        return (row["type_name"] or row["sub_name"] or "").strip()
 
 
 def run_app():

@@ -22,8 +22,8 @@ class ListWindow(ctk.CTkToplevel):
 
         self.geometry("1800x650")
         self.minsize(900, 500)
-        self.transient(parent)
-        self.grab_set()
+        self.resizable(True, True)
+        self.after(50, lambda: self.state("zoomed"))
 
         self.page_size = 10
         self.current_page = 1
@@ -41,12 +41,39 @@ class ListWindow(ctk.CTkToplevel):
 
         self.create_widgets()
         self.load_data()
+        self.after(80, self.bring_to_front)
+
+    def apply_grade(self, grade):
+        self.grade = grade
+        if grade == "A":
+            self.title("A급 공구 목록")
+        elif grade == "B":
+            self.title("B급 공구 목록")
+        else:
+            self.title("공구 목록")
+        self.current_page = 1
+        self.load_data()
+
+    def bring_to_front(self):
+        try:
+            self.attributes("-topmost", True)
+            self.lift()
+            self.focus_force()
+            self.after(400, lambda: self.attributes("-topmost", False))
+        except Exception:
+            try:
+                self.lift()
+            except Exception:
+                pass
 
     def fmt_num(self, v):
         if v is None or v == "":
             return ""
         try:
-            return f"{float(v):.1f}"
+            f = float(v)
+            if f == int(f):
+                return str(int(f))
+            return f"{f:.6f}".rstrip("0").rstrip(".")
         except (TypeError, ValueError):
             return str(v)
 
@@ -144,6 +171,12 @@ class ListWindow(ctk.CTkToplevel):
             top, text="등록된 공구 목록",
             font=ctk.CTkFont(size=18, weight="bold")
         ).pack(side="left")
+        self.btn_win_size = ctk.CTkButton(
+            top, text="창 축소", width=90,
+            fg_color="#7F8C8D", hover_color="#566573",
+            command=self.toggle_window_size,
+        )
+        self.btn_win_size.pack(side="right", padx=5)
         ctk.CTkButton(
             top, text="엑셀 다운로드", width=120, fg_color="#27AE60",
             command=self.on_export_excel
@@ -209,11 +242,11 @@ class ListWindow(ctk.CTkToplevel):
                 font=ctk.CTkFont(weight="bold")
             ).grid(row=0, column=i, padx=2, sticky="w")
 
+        bottom = ctk.CTkFrame(self, fg_color="transparent")
+        bottom.pack(side="bottom", fill="x", padx=15, pady=10)
+
         self.scroll = ctk.CTkScrollableFrame(self, height=400)
         self.scroll.pack(fill="both", expand=True, padx=15, pady=8)
-
-        bottom = ctk.CTkFrame(self, fg_color="transparent")
-        bottom.pack(fill="x", padx=15, pady=10)
         self.btn_prev = ctk.CTkButton(bottom, text="◀ 이전", width=90, command=self.prev_page)
         self.btn_prev.pack(side="left", padx=5)
         self.page_label = ctk.CTkLabel(bottom, text="1 / 1", width=100)
@@ -233,7 +266,6 @@ class ListWindow(ctk.CTkToplevel):
             fg_color="#8E44AD", hover_color="#6C3483",
             command=self.on_toolyne_upload
         ).pack(side="right", padx=5)
-        ctk.CTkButton(bottom, text="닫기", width=90, command=self.destroy).pack(side="right", padx=5)
         ctk.CTkButton(
             bottom, text="전체 삭제", width=90, fg_color="#7B241C",
             command=self.delete_all
@@ -248,6 +280,20 @@ class ListWindow(ctk.CTkToplevel):
             fg_color="#7F8C8D", hover_color="#566573",
             command=self.cancel_select_mode
         )
+
+    def toggle_window_size(self):
+        try:
+            if self.state() == "zoomed":
+                self.state("normal")
+                self.geometry("1800x650")
+                self.btn_win_size.configure(text="창 최대화")
+            else:
+                self.state("zoomed")
+                self.btn_win_size.configure(text="창 축소")
+        except Exception:
+            self.state("normal")
+            self.geometry("1800x650")
+            self.btn_win_size.configure(text="창 최대화")
 
     def set_page_size(self, size):
         self.page_size = size

@@ -2,27 +2,24 @@ import sys
 import sqlite3
 from pathlib import Path
 
-# DB 파일 위치
-DB_PATH = Path(__file__).parent.parent / "data" / "tools.db"
 
 def get_base_dir():
     if getattr(sys, "frozen", False):
-        # exe로 실행할 때: exe가 있는 폴더
         return Path(sys.executable).parent
-    else:
-        # python main.py 로 실행할 때
-        return Path(__file__).resolve().parent.parent
+    return Path(__file__).resolve().parent.parent
+
 
 DB_PATH = get_base_dir() / "data" / "tools.db"
+
 
 def get_connection():
     DB_PATH.parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys = ON")
-    conn.execute("PRAGMA journal_mode = WAL")      # 읽기/쓰기 동시 성능 향상
-    conn.execute("PRAGMA synchronous = NORMAL")    # 안전성과 속도 균형
-    conn.execute("PRAGMA temp_store = MEMORY")     # 임시 테이블을 메모리에
+    conn.execute("PRAGMA journal_mode = WAL")
+    conn.execute("PRAGMA synchronous = NORMAL")
+    conn.execute("PRAGMA temp_store = MEMORY")
     return conn
 
 
@@ -31,7 +28,6 @@ def init_db():
     conn = get_connection()
     cur = conn.cursor()
 
-    # 1. 카테고리
     cur.execute("""
         CREATE TABLE IF NOT EXISTS categories (
             id          INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -39,11 +35,21 @@ def init_db():
             main_name   TEXT NOT NULL,
             sub_code    TEXT NOT NULL,
             sub_name    TEXT,
+            type_name   TEXT,
             UNIQUE(main_code, sub_code)
         )
     """)
 
-    # 2. 제조사
+    cur.execute("PRAGMA table_info(categories)")
+    cat_cols = set()
+    for row in cur.fetchall():
+        try:
+            cat_cols.add(row["name"])
+        except Exception:
+            cat_cols.add(row[1])
+    if "type_name" not in cat_cols:
+        cur.execute("ALTER TABLE categories ADD COLUMN type_name TEXT")
+
     cur.execute("""
         CREATE TABLE IF NOT EXISTS makers (
             id          INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -52,7 +58,6 @@ def init_db():
         )
     """)
 
-    # 3. 공구 마스터
     cur.execute("""
         CREATE TABLE IF NOT EXISTS tools (
             id              INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -72,13 +77,12 @@ def init_db():
             tool_type       TEXT,
             remark          TEXT,
             created_at      TEXT DEFAULT (datetime('now', 'localtime')),
-            
+
             FOREIGN KEY (category_id) REFERENCES categories(id),
             FOREIGN KEY (maker_id) REFERENCES makers(id)
         )
     """)
 
-    # 4. 재고/등록 이력
     cur.execute("""
         CREATE TABLE IF NOT EXISTS inventory (
             id              INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -90,12 +94,11 @@ def init_db():
             is_grade_b      INTEGER DEFAULT 0,
             registered_at   TEXT DEFAULT (datetime('now', 'localtime')),
             registered_by   TEXT,
-            
+
             FOREIGN KEY (tool_id) REFERENCES tools(id)
         )
     """)
 
-    # 5. 나사 규격 (선택)
     cur.execute("""
         CREATE TABLE IF NOT EXISTS thread_specs (
             id          INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -105,7 +108,16 @@ def init_db():
         )
     """)
 
-    # 6. 카탈로그 (제원 전용)
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS tap_labels (
+            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            sub_code    TEXT NOT NULL,
+            pitch       TEXT NOT NULL,
+            label       TEXT NOT NULL,
+            UNIQUE(sub_code, pitch)
+        )
+    """)
+
     cur.execute("""
         CREATE TABLE IF NOT EXISTS catalog (
             id              INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -131,13 +143,9 @@ def init_db():
 
     cur.execute("CREATE INDEX IF NOT EXISTS idx_catalog_code ON catalog(tool_code)")
     cur.execute("CREATE INDEX IF NOT EXISTS idx_catalog_maker ON catalog(maker_name)")
-
-    # 인덱스
     cur.execute("CREATE INDEX IF NOT EXISTS idx_inventory_barcode ON inventory(barcode)")
     cur.execute("CREATE INDEX IF NOT EXISTS idx_tools_tool_code ON tools(tool_code)")
     cur.execute("CREATE INDEX IF NOT EXISTS idx_inventory_status ON inventory(status)")
-
-    # 추가 추천 인덱스
     cur.execute("CREATE INDEX IF NOT EXISTS idx_inventory_tool_id ON inventory(tool_id)")
     cur.execute("CREATE INDEX IF NOT EXISTS idx_inventory_sub_name ON inventory(sub_name)")
     cur.execute("CREATE INDEX IF NOT EXISTS idx_inventory_registered ON inventory(registered_at)")

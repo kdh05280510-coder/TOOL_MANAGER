@@ -24,17 +24,20 @@ from database.db import get_connection, init_db
 
 # 엑셀 파일 후보
 CANDIDATES = [
+    ROOT / "공구관리대장_성진세미텍_재고조사.xlsm",
     ROOT / "공구관리대장_성진세미텍.xlsm",
     ROOT / "공구관리대장_성진세미텍ver2.xlsm",
 ]
 
 SHEETS = {
-    "EM(ALU)": 0,
-    "EM(SUS)": 0,
-    "EM(STEEL)": 0,
-    "DR": 0,
-    "SP": 0,
-    "B급 재등록": 1,
+    # "EM(ALU)": 0,
+    # "EM(SUS)": 0,
+    # "EM(STEEL)": 0,
+    # "DR": 0,
+    # "SP": 0,
+    # "B급 재등록": 1,
+    "재고조사: 1",
+    
 }
 
 
